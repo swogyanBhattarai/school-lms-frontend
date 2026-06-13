@@ -1,4 +1,4 @@
-// app/admin/(dashboard)/students/page.tsx
+// app/admin/(dashboard)/students/StudentsPageClient.tsx
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";

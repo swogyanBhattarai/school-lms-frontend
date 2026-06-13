@@ -75,6 +75,7 @@ import type {
   SubjectCreate,
   SubjectUpdate,
 } from "@/types/lms";
+import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 // Constants
 const SUBJECT_ICONS: Record<string, typeof BookOpen> = {
@@ -100,6 +101,7 @@ const AVATAR_COLORS = [
 ];
 
 export default function SubjectsPage() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -248,6 +250,8 @@ export default function SubjectsPage() {
       description: `${subjects.length} subjects exported successfully.`,
     });
   };
+
+  if (!hasMounted) return null;
 
   return (
     <div className="space-y-6">

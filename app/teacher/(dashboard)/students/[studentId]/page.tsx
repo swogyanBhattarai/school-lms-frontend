@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Calendar,
   ChevronDown,
@@ -37,6 +37,7 @@ import { getClassAssignmentsBySection } from "@/lib/api/classAssignment";
 import type { ClassAssignmentResponse } from "@/types/lms";
 import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
 import { convertADToBS } from "@/lib/nepali-calendar";
+import useHasMounted from "@/lib/hooks/useHasMounted";
 
 interface Subject {
   subjectId: number;
@@ -94,19 +95,24 @@ function AttendanceStatusBadge({ status }: { status: string | undefined }) {
 }
 
 export default function StudentDetailsPage() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const params = useParams();
   const studentId = Number(params.studentId);
 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
-  const [attendanceDate, setAttendanceDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
-  const [diaryDate, setDiaryDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [attendanceDate, setAttendanceDate] = useState<string>("");
+  const [diaryDate, setDiaryDate] = useState<string>("");
   const [expandedAssignments, setExpandedAssignments] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (hasMounted) {
+      const today = new Date().toISOString().split('T')[0];
+      setAttendanceDate(today);
+      setDiaryDate(today);
+    }
+  }, [hasMounted]);
 
   const {
     data: studentData,
@@ -181,10 +187,12 @@ export default function StudentDetailsPage() {
     .join("");
   
   const attendanceDateBS = useMemo(() => {
+    if (!attendanceDate) return undefined;
     return convertADToBS(new Date(attendanceDate));
   }, [attendanceDate]);
 
   const diaryDateBS = useMemo(() => {
+    if (!diaryDate) return undefined;
     return convertADToBS(new Date(diaryDate));
   }, [diaryDate]);
 
@@ -315,6 +323,8 @@ export default function StudentDetailsPage() {
       day: "numeric",
     });
   };
+
+  if (!hasMounted) return null;
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-16 sm:pb-20">

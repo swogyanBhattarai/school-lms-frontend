@@ -1,4 +1,5 @@
 "use client";
+import useHasMounted from "@/lib/hooks/useHasMounted";
 import { useState } from "react";
 import {
   Users,
@@ -69,7 +70,10 @@ const getActivityColor = (type: string) => {
 };
 
 export default function DashboardPage() {
+  const hasMounted = useHasMounted();
   const [selectedPeriod, setSelectedPeriod] = useState("today");
+
+  if (!hasMounted) return null;
 
   return (
     <div className="space-y-6">

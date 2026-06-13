@@ -47,6 +47,7 @@ import {
   SheetTrigger,
 } from "@/app/_components/ui/sheet";
 import { cn } from "@/lib/utils";
+import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 // Mock Data Types
 interface FeePayment {
@@ -240,6 +241,7 @@ const PAYMENT_METHOD_CONFIG = {
 };
 
 export default function FeesPage() {
+  const hasMounted = useHasMounted();
   const [search, setSearch] = useState("");
   const [selectedYear, setSelectedYear] = useState<string>("2082 B.S.");
   const [selectedGrade, setSelectedGrade] = useState<string>("all");
@@ -300,6 +302,8 @@ export default function FeesPage() {
   const maxMonthlyValue = Math.max(
     ...MOCK_MONTHLY_COLLECTIONS.map((m) => Math.max(m.collected, m.expected))
   );
+
+  if (!hasMounted) return null;
 
   // Mobile Filter Content
   const MobileFilterContent = () => (

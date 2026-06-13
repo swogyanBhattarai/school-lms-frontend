@@ -111,6 +111,7 @@ import {
   updateClassAssignment,
   deleteClassAssignment,
 } from "@/lib/api/classAssignment";
+import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 type AssignmentRole = TeacherRoles;
 
@@ -203,6 +204,7 @@ const AVATAR_COLORS = [
 ];
 
 export default function SectionDetailsPage() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const params = useParams<{ sectionId: string }>();
   const { toast } = useToast();
@@ -620,6 +622,8 @@ export default function SectionDetailsPage() {
       if (bulkUploadResultFilter === "error") return row.rowStatus === "ERROR";
       return true;
     }) ?? [];
+
+  if (!hasMounted) return null;
 
   if (!hasValidSectionId) {
     return (

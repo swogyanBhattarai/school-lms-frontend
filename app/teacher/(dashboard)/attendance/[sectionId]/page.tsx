@@ -37,6 +37,7 @@ import { getStudents } from "@/lib/api/student";
 import { getSectionById } from "@/lib/api/section";
 import { createMassAttendance, getAttendanceBySectionAndSubject } from "@/lib/api/attendance";
 import type { AttendanceResponse, AttendanceStatus, MassAttendance, StudentAttendance as StudentAttendancePayload } from "@/types/lms";
+import useHasMounted from "@/lib/hooks/useHasMounted";
 
 // Status Configuration
 const STATUS_CONFIG = {
@@ -79,6 +80,7 @@ interface StudentState {
 }
 
 export default function TakeAttendancePage() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -213,6 +215,8 @@ export default function TakeAttendancePage() {
     attendanceMutation.mutate(payload);
     setShowConfirmDialog(false);
   };
+
+  if (!hasMounted) return null;
 
   if (isSectionLoading || isStudentsLoading) {
     return (

@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Calendar,
   ChevronDown,
@@ -49,6 +49,7 @@ import { getClassAssignmentsBySection } from "@/lib/api/classAssignment";
 import type { ClassAssignmentResponse } from "@/types/lms";
 import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
 import { convertADToBS } from "@/lib/nepali-calendar";
+import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 interface ParentInfo {
   parentName: string;
@@ -113,6 +114,7 @@ function AttendanceStatusBadge({ status }: { status: string | undefined }) {
 }
 
 export default function StudentDetailsPage() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const params = useParams();
   const studentId = Number(params.studentId);
@@ -121,10 +123,14 @@ export default function StudentDetailsPage() {
 
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
-  const [attendanceDate, setAttendanceDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  );
+  const [attendanceDate, setAttendanceDate] = useState<string>("");
   const [expandedAssignments, setExpandedAssignments] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (hasMounted) {
+      setAttendanceDate(new Date().toISOString().split('T')[0]);
+    }
+  }, [hasMounted]);
 
   // Parent management state
   const [editingParentIndex, setEditingParentIndex] = useState<number | null>(null);
@@ -220,6 +226,7 @@ export default function StudentDetailsPage() {
     .join("");
   
   const attendanceDateBS = useMemo(() => {
+    if (!attendanceDate) return undefined;
     return convertADToBS(new Date(attendanceDate));
   }, [attendanceDate]);
 
@@ -382,6 +389,8 @@ export default function StudentDetailsPage() {
     setEditedDOB(studentData?.dateOfBirth ?? "");
     setIsEditingStudent(true);
   };
+
+  if (!hasMounted) return null;
 
   const tabs = [
     { id: "overview" as TabType, label: "Overview", icon: Eye },

@@ -76,6 +76,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/app/_components/ui/sheet";
+import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (isAxiosError(error)) {
@@ -123,6 +124,7 @@ const AVATAR_COLORS = [
 ];
 
 export default function StudentsPageClient() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -325,8 +327,10 @@ export default function StudentsPageClient() {
   ]);
 
   useEffect(() => {
-    updateUrlParams();
-  }, [updateUrlParams]);
+    if (hasMounted) {
+      updateUrlParams();
+    }
+  }, [updateUrlParams, hasMounted]);
 
   // Handlers
   const handleSort = (column: string) => {
@@ -376,6 +380,8 @@ export default function StudentsPageClient() {
     }
     return `${Math.round(average)}%`;
   };
+
+  if (!hasMounted) return null;
 
   // Mobile filter content
   const FilterContent = () => (

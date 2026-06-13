@@ -85,6 +85,7 @@ import type {
   TeacherUpdate,
   TeacherResponse,
 } from "@/types/lms";
+import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 const TABS = [
   { id: "all", label: "All Teachers" },
@@ -129,6 +130,7 @@ const AVATAR_COLORS = [
 ];
 
 export default function TeachersPage() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -351,6 +353,8 @@ export default function TeachersPage() {
       description: `${teachers.length} teachers exported successfully.`,
     });
   };
+
+  if (!hasMounted) return null;
 
   return (
     <div className="space-y-4 sm:space-y-6">

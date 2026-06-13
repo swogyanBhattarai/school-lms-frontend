@@ -40,6 +40,7 @@ import {
 import { cn } from "@/lib/utils";
 import { getClassAssignmentsByTeacherId } from "@/lib/api/teacher";
 import type { ClassAssignmentAttendanceResponse } from "@/types/lms";
+import  useHasMounted from "@/lib/hooks/useHasMounted";
 
 interface TeacherInfo {
   teacherId: number;
@@ -53,6 +54,7 @@ interface TeacherInfo {
 }
 
 export default function TeacherClassAssignmentsPage() {
+  const hasMounted = useHasMounted();
   const router = useRouter();
   const { user, loading } = useUser();
   const [search, setSearch] = useState("");
@@ -227,6 +229,8 @@ export default function TeacherClassAssignmentsPage() {
     setGradeFilter("all");
     setSortBy("grade");
   };
+
+  if (!hasMounted) return null;
 
   // Mobile Filter Content
   const MobileFilterContent = () => (

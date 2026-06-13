@@ -79,6 +79,7 @@ import type {
   SchoolClassCreate,
   SchoolClassUpdate,
 } from "@/types/lms";
+import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 // Helper function to format date
 function fmtDate(d: string) {
@@ -118,6 +119,7 @@ const blankAcademicYear = (): AcademicYearForm => ({
 });
 
 export default function AcademicYearsPage() {
+  const hasMounted = useHasMounted();
   const { toast } = useToast();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -599,6 +601,8 @@ export default function AcademicYearsPage() {
   const upcomingYears = academicYears.filter(
     y => !y.isActive && new Date(y.startDate) > new Date()
   ).length;
+
+  if (!hasMounted) return null;
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">

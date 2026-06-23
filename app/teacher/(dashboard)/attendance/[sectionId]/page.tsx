@@ -15,7 +15,6 @@ import {
   RotateCcw,
   Save,
   ChevronRight,
-  Loader2,
   Clock,
   X,
 } from "lucide-react";
@@ -32,12 +31,20 @@ import {
 } from "@/app/_components/ui/dialog";
 import { cn, getApiErrorMessage } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
+import { AttendanceSkeleton } from "@/app/_components/skeletons/AttendanceSkeleton";
 
 import { getStudents } from "@/lib/api/student";
 import { getSectionById } from "@/lib/api/section";
-import { createMassAttendance, getAttendanceBySectionAndSubject } from "@/lib/api/attendance";
-import type { AttendanceResponse, AttendanceStatus, MassAttendance, StudentAttendance as StudentAttendancePayload } from "@/types/lms";
-import useHasMounted from "@/lib/hooks/useHasMounted";
+import {
+  createMassAttendance,
+  getAttendanceBySectionAndSubject,
+} from "@/lib/api/attendance";
+import type {
+  AttendanceResponse,
+  AttendanceStatus,
+  MassAttendance,
+  StudentAttendance as StudentAttendancePayload,
+} from "@/types/lms";
 
 // Status Configuration
 const STATUS_CONFIG = {
@@ -70,7 +77,7 @@ const STATUS_CONFIG = {
     border: "border-amber-200",
     activeBg: "bg-amber-500",
     activeText: "text-white",
-  }
+  },
 };
 
 interface StudentState {
@@ -80,7 +87,6 @@ interface StudentState {
 }
 
 export default function TakeAttendancePage() {
-  const hasMounted = useHasMounted();
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -92,7 +98,9 @@ export default function TakeAttendancePage() {
   const [search, setSearch] = useState("");
   const [studentStates, setStudentStates] = useState<StudentState[]>([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<AttendanceStatus | "ALL">("ALL");
+  const [filterStatus, setFilterStatus] = useState<AttendanceStatus | "ALL">(
+    "ALL",
+  );
 
   // Fetch Section Data
   const { data: section, isLoading: isSectionLoading } = useQuery({
@@ -114,10 +122,7 @@ export default function TakeAttendancePage() {
     enabled: !!sectionId,
   });
 
-  const {
-    data: attendanceResponse,
-    isSuccess: isAttendanceLoaded,
-  } = useQuery({
+  const { data: attendanceResponse, isSuccess: isAttendanceLoaded } = useQuery({
     queryKey: ["attendance", { sectionId, subjectId }],
     queryFn: () => getAttendanceBySectionAndSubject(sectionId, subjectId),
     enabled: !!sectionId && !!subjectId,
@@ -136,12 +141,13 @@ export default function TakeAttendancePage() {
           studentId: s.studentId,
           studentName: s.studentName,
           status: statusByStudentId.get(s.studentId) ?? "PRESENT",
-        }))
+        })),
       );
     }
   }, [studentsResponse, attendanceResponse]);
 
-  const isAttendanceLocked = isAttendanceLoaded && (attendanceResponse?.length ?? 0) > 0;
+  const isAttendanceLocked =
+    isAttendanceLoaded && (attendanceResponse?.length ?? 0) > 0;
 
   // Mass Attendance Mutation
   const attendanceMutation = useMutation({
@@ -179,7 +185,9 @@ export default function TakeAttendancePage() {
   // Filtered Students
   const filteredStudents = useMemo(() => {
     return studentStates.filter((s) => {
-      const matchesSearch = s.studentName.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = s.studentName
+        .toLowerCase()
+        .includes(search.toLowerCase());
       const matchesFilter = filterStatus === "ALL" || s.status === filterStatus;
       return matchesSearch && matchesFilter;
     });
@@ -187,7 +195,7 @@ export default function TakeAttendancePage() {
 
   const updateStatus = (studentId: number, status: AttendanceStatus) => {
     setStudentStates((prev) =>
-      prev.map((s) => (s.studentId === studentId ? { ...s, status } : s))
+      prev.map((s) => (s.studentId === studentId ? { ...s, status } : s)),
     );
   };
 
@@ -216,15 +224,8 @@ export default function TakeAttendancePage() {
     setShowConfirmDialog(false);
   };
 
-  if (!hasMounted) return null;
-
   if (isSectionLoading || isStudentsLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-muted-foreground animate-pulse">Loading class data...</p>
-      </div>
-    );
+    return <AttendanceSkeleton />;
   }
 
   const today = new Date().toLocaleDateString("en-NP", {
@@ -248,7 +249,9 @@ export default function TakeAttendancePage() {
             <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
           </Button>
           <div className="flex flex-col">
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight">Record Attendance</h1>
+            <h1 className="text-lg sm:text-2xl font-bold tracking-tight">
+              Record Attendance
+            </h1>
             <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5">
               <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
               {today}
@@ -265,7 +268,9 @@ export default function TakeAttendancePage() {
                 <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
               <div className="space-y-0.5 sm:space-y-1 min-w-0">
-                <h2 className="text-base sm:text-xl font-bold truncate">Grade {section?.grade} - {section?.sectionName}</h2>
+                <h2 className="text-base sm:text-xl font-bold truncate">
+                  Grade {section?.grade} - {section?.sectionName}
+                </h2>
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
                   <span className="flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
@@ -274,9 +279,11 @@ export default function TakeAttendancePage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-4 sm:mt-6 flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground mr-1 sm:mr-2">Quick Mark All:</p>
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground mr-1 sm:mr-2">
+                Quick Mark All:
+              </p>
               <Button
                 variant="outline"
                 size="sm"
@@ -284,7 +291,7 @@ export default function TakeAttendancePage() {
                 disabled={isAttendanceLocked}
                 className={cn(
                   "rounded-xl border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-emerald-600 font-medium text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed"
+                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
                 )}
               >
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
@@ -297,7 +304,7 @@ export default function TakeAttendancePage() {
                 disabled={isAttendanceLocked}
                 className={cn(
                   "rounded-xl border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-red-600 font-medium text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed"
+                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
                 )}
               >
                 <XCircle className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
@@ -310,7 +317,7 @@ export default function TakeAttendancePage() {
                 disabled={isAttendanceLocked}
                 className={cn(
                   "rounded-xl border-amber-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 text-amber-600 font-medium text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed"
+                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
                 )}
               >
                 <Clock className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
@@ -323,7 +330,7 @@ export default function TakeAttendancePage() {
                 disabled={isAttendanceLocked}
                 className={cn(
                   "rounded-xl text-slate-500 text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed"
+                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
                 )}
               >
                 <RotateCcw className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
@@ -334,10 +341,14 @@ export default function TakeAttendancePage() {
 
           {/* Stats Summary Card */}
           <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-            <h3 className="text-xs sm:text-sm font-bold mb-2 sm:mb-3">Live Summary</h3>
+            <h3 className="text-xs sm:text-sm font-bold mb-2 sm:mb-3">
+              Live Summary
+            </h3>
             <div className="space-y-2 sm:space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">Present</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground">
+                  Present
+                </span>
                 <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                   {stats.present}
                 </span>
@@ -345,12 +356,16 @@ export default function TakeAttendancePage() {
               <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                  style={{ width: `${(stats.present / (stats.total || 1)) * 100}%` }}
+                  style={{
+                    width: `${(stats.present / (stats.total || 1)) * 100}%`,
+                  }}
                 />
               </div>
-              
+
               <div className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">Absent</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground">
+                  Absent
+                </span>
                 <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
                   {stats.absent}
                 </span>
@@ -358,12 +373,16 @@ export default function TakeAttendancePage() {
               <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-red-500 rounded-full transition-all duration-300"
-                  style={{ width: `${(stats.absent / (stats.total || 1)) * 100}%` }}
+                  style={{
+                    width: `${(stats.absent / (stats.total || 1)) * 100}%`,
+                  }}
                 />
               </div>
-              
+
               <div className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">Leave</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground">
+                  Leave
+                </span>
                 <span className="text-[10px] sm:text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
                   {stats.leave}
                 </span>
@@ -371,7 +390,9 @@ export default function TakeAttendancePage() {
               <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                  style={{ width: `${(stats.leave / (stats.total || 1)) * 100}%` }}
+                  style={{
+                    width: `${(stats.leave / (stats.total || 1)) * 100}%`,
+                  }}
                 />
               </div>
             </div>
@@ -407,7 +428,7 @@ export default function TakeAttendancePage() {
             className={cn(
               "rounded-full whitespace-nowrap text-xs h-8 flex-shrink-0",
               filterStatus === "ALL" ? "" : "",
-              isAttendanceLocked && "opacity-60 cursor-not-allowed"
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
             )}
           >
             All
@@ -418,8 +439,9 @@ export default function TakeAttendancePage() {
             onClick={() => setFilterStatus("PRESENT")}
             className={cn(
               "rounded-full whitespace-nowrap text-xs h-8 flex-shrink-0",
-              filterStatus !== "PRESENT" && "hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200",
-              isAttendanceLocked && "opacity-60 cursor-not-allowed"
+              filterStatus !== "PRESENT" &&
+                "hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200",
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
             )}
             disabled={isAttendanceLocked}
           >
@@ -431,8 +453,9 @@ export default function TakeAttendancePage() {
             onClick={() => setFilterStatus("ABSENT")}
             className={cn(
               "rounded-full whitespace-nowrap text-xs h-8 flex-shrink-0",
-              filterStatus !== "ABSENT" && "hover:bg-red-50 hover:text-red-700 hover:border-red-200",
-              isAttendanceLocked && "opacity-60 cursor-not-allowed"
+              filterStatus !== "ABSENT" &&
+                "hover:bg-red-50 hover:text-red-700 hover:border-red-200",
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
             )}
             disabled={isAttendanceLocked}
           >
@@ -444,8 +467,9 @@ export default function TakeAttendancePage() {
             onClick={() => setFilterStatus("LEAVE")}
             className={cn(
               "rounded-full whitespace-nowrap text-xs h-8 flex-shrink-0",
-              filterStatus !== "LEAVE" && "hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200",
-              isAttendanceLocked && "opacity-60 cursor-not-allowed"
+              filterStatus !== "LEAVE" &&
+                "hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200",
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
             )}
             disabled={isAttendanceLocked}
           >
@@ -463,48 +487,66 @@ export default function TakeAttendancePage() {
               className={cn(
                 "group relative rounded-xl sm:rounded-2xl border bg-white p-3 sm:p-4 transition-all duration-200 hover:shadow-md",
                 STATUS_CONFIG[student.status].border,
-                STATUS_CONFIG[student.status].bg
+                STATUS_CONFIG[student.status].bg,
               )}
             >
               <div className="flex items-center gap-3 sm:gap-4">
-                <div className={cn(
-                  "flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg sm:rounded-xl font-bold shadow-sm flex-shrink-0",
-                  student.status === "PRESENT" ? "bg-emerald-100 text-emerald-700" :
-                  student.status === "ABSENT" ? "bg-red-100 text-red-700" :
-                  "bg-amber-100 text-amber-700"
-                )}>
+                <div
+                  className={cn(
+                    "flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg sm:rounded-xl font-bold shadow-sm flex-shrink-0",
+                    student.status === "PRESENT"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : student.status === "ABSENT"
+                        ? "bg-red-100 text-red-700"
+                        : "bg-amber-100 text-amber-700",
+                  )}
+                >
                   {student.studentName.charAt(0).toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-sm sm:text-base text-slate-900 truncate">{student.studentName}</h4>
+                  <h4 className="font-bold text-sm sm:text-base text-slate-900 truncate">
+                    {student.studentName}
+                  </h4>
                 </div>
               </div>
 
               <div className="mt-3 sm:mt-4 flex items-center justify-between gap-2">
                 <div className="flex w-full rounded-lg sm:rounded-xl overflow-hidden border border-slate-200 p-0.5 sm:p-1 bg-slate-50/50">
-                  {(Object.keys(STATUS_CONFIG) as AttendanceStatus[]).map((status) => {
-                    const config = STATUS_CONFIG[status];
-                    const isActive = student.status === status;
-                    const Icon = config.icon;
-                    
-                    return (
-                      <button
-                        key={status}
-                        onClick={() => updateStatus(student.studentId, status)}
-                        disabled={isAttendanceLocked}
-                        className={cn(
-                          "flex-1 flex items-center justify-center gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-1 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg transition-all",
-                          isActive
-                            ? `${config.activeBg} ${config.activeText} shadow-sm`
-                            : "text-slate-500 hover:text-slate-900 hover:bg-white",
-                          isAttendanceLocked && "opacity-60 cursor-not-allowed"
-                        )}
-                      >
-                        <Icon className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5", !isActive && config.text)} />
-                        <span className="hidden sm:inline">{config.label}</span>
-                      </button>
-                    );
-                  })}
+                  {(Object.keys(STATUS_CONFIG) as AttendanceStatus[]).map(
+                    (status) => {
+                      const config = STATUS_CONFIG[status];
+                      const isActive = student.status === status;
+                      const Icon = config.icon;
+
+                      return (
+                        <button
+                          key={status}
+                          onClick={() =>
+                            updateStatus(student.studentId, status)
+                          }
+                          disabled={isAttendanceLocked}
+                          className={cn(
+                            "flex-1 flex items-center justify-center gap-1 sm:gap-1.5 py-1.5 sm:py-2 px-1 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg transition-all",
+                            isActive
+                              ? `${config.activeBg} ${config.activeText} shadow-sm`
+                              : "text-slate-500 hover:text-slate-900 hover:bg-white",
+                            isAttendanceLocked &&
+                              "opacity-60 cursor-not-allowed",
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              "h-3 w-3 sm:h-3.5 sm:w-3.5",
+                              !isActive && config.text,
+                            )}
+                          />
+                          <span className="hidden sm:inline">
+                            {config.label}
+                          </span>
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
               </div>
             </div>
@@ -514,8 +556,12 @@ export default function TakeAttendancePage() {
             <div className="mx-auto flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-full bg-slate-50 text-slate-400 mb-3 sm:mb-4">
               <Users className="h-6 w-6 sm:h-8 sm:w-8" />
             </div>
-            <h3 className="text-base sm:text-lg font-semibold text-slate-900">No students found</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground">Try adjusting your search or filters.</p>
+            <h3 className="text-base sm:text-lg font-semibold text-slate-900">
+              No students found
+            </h3>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Try adjusting your search or filters.
+            </p>
           </div>
         )}
       </div>
@@ -525,12 +571,14 @@ export default function TakeAttendancePage() {
         <div
           className={cn(
             "mx-auto max-w-lg rounded-xl sm:rounded-2xl bg-white shadow-xl shadow-slate-200/60 p-3 sm:p-4 border border-slate-200",
-            isAttendanceLocked && "border-slate-200"
+            isAttendanceLocked && "border-slate-200",
           )}
         >
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 font-bold">Marked Status</p>
+              <p className="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                Marked Status
+              </p>
               <div className="flex items-center gap-2 sm:gap-3">
                 <span className="text-emerald-400 text-xs sm:text-sm font-bold flex items-center gap-1">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
@@ -552,7 +600,7 @@ export default function TakeAttendancePage() {
                 size="sm"
                 className={cn(
                   "text-slate-700 hover:bg-slate-100 text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed"
+                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
                 )}
                 onClick={resetAll}
                 disabled={isAttendanceLocked}
@@ -564,12 +612,12 @@ export default function TakeAttendancePage() {
                 size="sm"
                 className={cn(
                   "bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-lg shadow-blue-200/60 px-4 sm:px-6 rounded-xl font-bold transition-all text-xs h-8 sm:h-9",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed"
+                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
                 )}
                 disabled={attendanceMutation.isPending || isAttendanceLocked}
               >
                 {attendanceMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">Saving...</span>
                 ) : (
                   <>
                     <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
@@ -593,31 +641,44 @@ export default function TakeAttendancePage() {
                 Finalize Attendance
               </DialogTitle>
               <DialogDescription className="text-xs sm:text-sm pt-1 sm:pt-2">
-                You are about to submit the attendance for <span className="font-bold text-slate-900">{today}</span>.
+                You are about to submit the attendance for{" "}
+                <span className="font-bold text-slate-900">{today}</span>.
                 Please review the summary below.
               </DialogDescription>
             </DialogHeader>
           </div>
-          
+
           <div className="border-t" />
-          
+
           <div className="grid grid-cols-3 gap-2 sm:gap-3 px-4 sm:px-6 py-4">
             <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-emerald-50 border border-emerald-100">
-              <span className="text-lg sm:text-xl font-bold text-emerald-700">{stats.present}</span>
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-emerald-600">Present</span>
+              <span className="text-lg sm:text-xl font-bold text-emerald-700">
+                {stats.present}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-emerald-600">
+                Present
+              </span>
             </div>
             <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-red-50 border border-red-100">
-              <span className="text-lg sm:text-xl font-bold text-red-700">{stats.absent}</span>
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-red-600">Absent</span>
+              <span className="text-lg sm:text-xl font-bold text-red-700">
+                {stats.absent}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-red-600">
+                Absent
+              </span>
             </div>
             <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-amber-50 border border-amber-100">
-              <span className="text-lg sm:text-xl font-bold text-amber-700">{stats.leave}</span>
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-amber-600">Leave</span>
+              <span className="text-lg sm:text-xl font-bold text-amber-700">
+                {stats.leave}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase text-amber-600">
+                Leave
+              </span>
             </div>
           </div>
-          
+
           <div className="border-t" />
-          
+
           <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 sm:gap-0">
             <Button
               variant="ghost"

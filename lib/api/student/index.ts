@@ -3,7 +3,6 @@ import type {
   PageResponse,
   StudentCreate,
   StudentDetailResponse,
-  StudentModel,
   StudentResponse,
   StudentUpdate,
 } from "@/types/lms";
@@ -46,9 +45,8 @@ export const getStudentById = async (
  */
 export const createStudent = async (
   payload: StudentCreate
-): Promise<StudentModel> => {
-  const response = await api.post<StudentModel>("/api/student", payload);
-  return response.data;
+): Promise<void> => {
+  await api.post("/api/student", payload);
 };
 
 /**
@@ -57,9 +55,8 @@ export const createStudent = async (
 export const updateStudent = async (
   id: number,
   payload: StudentUpdate
-): Promise<StudentModel> => {
-  const response = await api.put<StudentModel>(`/api/student/${id}`, payload);
-  return response.data;
+): Promise<void> => {
+  await api.put(`/api/student/${id}`, payload);
 };
 
 /**

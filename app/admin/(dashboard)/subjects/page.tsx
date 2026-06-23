@@ -12,7 +12,7 @@ import {
   Download,
   X,
   BookOpen,
-  Loader2,
+
   AlertCircle,
   RefreshCw,
   FlaskConical,
@@ -75,7 +75,8 @@ import type {
   SubjectCreate,
   SubjectUpdate,
 } from "@/types/lms";
-import  useHasMounted  from "@/lib/hooks/useHasMounted";
+import useHasMounted from "@/lib/hooks/useHasMounted";
+import { ListPageSkeleton } from "@/app/_components/skeletons/ListPageSkeleton";
 
 // Constants
 const SUBJECT_ICONS: Record<string, typeof BookOpen> = {
@@ -251,7 +252,7 @@ export default function SubjectsPage() {
     });
   };
 
-  if (!hasMounted) return null;
+  if (!hasMounted) return <ListPageSkeleton />;
 
   return (
     <div className="space-y-6">
@@ -291,7 +292,7 @@ export default function SubjectsPage() {
               <p className="text-xs text-muted-foreground">Total Subjects</p>
               <p className="text-xl font-bold">
                 {subjectsLoading ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  <span className="h-5 w-12 bg-muted rounded animate-pulse inline-block" />
                 ) : (
                   totalSubjects
                 )}
@@ -358,12 +359,7 @@ export default function SubjectsPage() {
 
       {/* Subjects Display */}
       {subjectsLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Loading subjects...</p>
-          </div>
-        </div>
+        <ListPageSkeleton cardCount={8} />
       ) : subjectsError ? (
         <div className="flex items-center justify-center py-20">
           <div className="flex flex-col items-center gap-3">

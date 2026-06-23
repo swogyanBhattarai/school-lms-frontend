@@ -400,6 +400,16 @@ export function getTodayBS(): { year: number; month: number; day: number } {
 }
 
 /**
+ * Get today's AD date as a YYYY-MM-DD string in local time.
+ * Unlike toISOString().split('T')[0], this returns the correct local date
+ * regardless of timezone offset.
+ */
+export function getTodayADString(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+/**
  * Get number of days in a BS month
  */
 export function getBSMonthDays(year: number, month: number): number {

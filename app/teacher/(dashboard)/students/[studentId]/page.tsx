@@ -17,6 +17,7 @@ import {
   PieChart,
   TrendingUp,
   Filter,
+  BookMarked,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Badge } from "@/app/_components/ui/badge";
@@ -34,9 +35,11 @@ import { useQuery } from "@tanstack/react-query";
 import { getStudentById } from "@/lib/api/student";
 import { getStudentAttendanceSummary, getStudentDailyAttendance } from "@/lib/api/attendance";
 import { getClassAssignmentsBySection } from "@/lib/api/classAssignment";
-import type { ClassAssignmentResponse } from "@/types/lms";
+import type { ClassAssignmentResponse, DiaryResponse } from "@/types/lms";
 import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
-import { convertADToBS } from "@/lib/nepali-calendar";
+import { convertADToBS, getTodayADString } from "@/lib/nepali-calendar";
+import { TeacherStudentDetailSkeleton } from "@/app/_components/skeletons/TeacherStudentDetailSkeleton";
+import { findAllFiltered } from "@/lib/api/diary";
 import useHasMounted from "@/lib/hooks/useHasMounted";
 
 interface Subject {
@@ -108,7 +111,7 @@ export default function StudentDetailsPage() {
 
   useEffect(() => {
     if (hasMounted) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayADString();
       setAttendanceDate(today);
       setDiaryDate(today);
     }
@@ -195,6 +198,20 @@ export default function StudentDetailsPage() {
     if (!diaryDate) return undefined;
     return convertADToBS(new Date(diaryDate));
   }, [diaryDate]);
+
+  // Diary query
+  const { data: diaryPage, isLoading: diaryLoading } = useQuery({
+    queryKey: ["diary", sectionId, diaryDate],
+    queryFn: () =>
+      findAllFiltered({
+        sectionId: sectionId as number,
+        startDate: diaryDate || undefined,
+        endDate: diaryDate || undefined,
+        pageSize: 100,
+      }),
+    enabled: typeof sectionId === "number" && !!diaryDate,
+  });
+  const diaryEntries: DiaryResponse[] = diaryPage?.content ?? [];
 
   const subjectOptions = useMemo(() => {
     const subjectMap = new Map<number, string>();
@@ -296,7 +313,7 @@ export default function StudentDetailsPage() {
       },
       title: `${ca.subjectName} - ${ca.teacherRole}`,
       description: `Class assignment for ${ca.subjectName} taught by ${ca.teacherName}`,
-      dueDate: new Date().toISOString().split('T')[0],
+      dueDate: getTodayADString(),
       status: "PENDING" as const,
     }));
   }, [classAssignments]);
@@ -324,7 +341,7 @@ export default function StudentDetailsPage() {
     });
   };
 
-  if (!hasMounted) return null;
+  if (!hasMounted) return <TeacherStudentDetailSkeleton />;
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-16 sm:pb-20">
@@ -555,9 +572,13 @@ export default function StudentDetailsPage() {
           
           <div className="p-4 sm:p-6">
             {isAttendanceSummaryLoading ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-12 sm:py-16 text-slate-500">
-                <span className="h-6 w-6 sm:h-8 sm:w-8 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
-                <p className="text-xs sm:text-sm font-semibold">Loading attendance data...</p>
+              <div className="grid lg:grid-cols-12 gap-6 sm:gap-8 animate-pulse">
+                <div className="lg:col-span-5 h-64 bg-muted rounded-xl" />
+                <div className="lg:col-span-7 space-y-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-12 bg-muted rounded-xl" />
+                  ))}
+                </div>
               </div>
             ) : !hasAttendanceData ? (
               <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
@@ -678,9 +699,10 @@ export default function StudentDetailsPage() {
           </div>
           <div className="p-4 sm:p-6">
             {isClassAssignmentsLoading ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-8 sm:py-10 text-slate-500">
-                <span className="h-6 w-6 sm:h-7 sm:w-7 animate-spin rounded-full border-4 border-slate-200 border-t-emerald-500" />
-                <p className="text-xs sm:text-sm font-semibold">Loading class teachers...</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 animate-pulse">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-32 bg-muted rounded-xl" />
+                ))}
               </div>
             ) : isClassAssignmentsError ? (
               <div className="text-center py-8 sm:py-10 rounded-xl sm:rounded-2xl bg-red-50 border-2 border-dashed border-red-200">
@@ -739,78 +761,72 @@ export default function StudentDetailsPage() {
             </div>
           </div>
           <div className="p-4 sm:p-6">
-            <div className="space-y-3 sm:space-y-4">
-              {filteredAssignments.length === 0 ? (
-                <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                    <FileText className="h-6 w-6 sm:h-8 sm:w-8 text-slate-300" />
-                  </div>
-                  <p className="text-slate-500 font-bold text-base sm:text-lg tracking-tight">No assignments data yet</p>
-                  <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-1">Assignments will appear once added</p>
+            {diaryLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 animate-pulse">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-40 bg-muted rounded-xl" />
+                ))}
+              </div>
+            ) : diaryEntries.length === 0 ? (
+              <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <BookMarked className="h-6 w-6 sm:h-8 sm:w-8 text-slate-300" />
                 </div>
-              ) : (
-                filteredAssignments.map(assignment => (
-                  <div 
-                    key={assignment.assignmentId}
-                    className="group rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden hover:border-blue-300 hover:shadow-xl hover:shadow-blue-500/[0.03] transition-all duration-300"
+                <p className="text-slate-500 font-bold text-base sm:text-lg tracking-tight">No diary entries found</p>
+                <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-1">Diary entries will appear here once created</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
+                {diaryEntries.map((entry) => (
+                  <div
+                    key={entry.diaryId}
+                    className="rounded-xl border border-slate-200 bg-white hover:border-violet-200 hover:shadow-md transition-all group flex flex-col h-full"
                   >
-                    <div 
-                      className="flex items-center gap-3 sm:gap-5 p-3 sm:p-5 cursor-pointer"
-                      onClick={() => toggleAssignment(assignment.assignmentId)}
-                    >
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-blue-50 flex items-center justify-center flex-shrink-0 group-hover:bg-blue-100 transition-colors">
-                        <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                          <h4 className="text-sm sm:text-base font-bold text-slate-800 tracking-tight truncate">{assignment.title}</h4>
-                          <AssignmentStatusBadge status={assignment.status} />
+                    <div className="p-4 sm:p-5 flex flex-col flex-1">
+                      <div className="flex items-start gap-3 sm:gap-4 mb-3">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                          <BookMarked className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
                         </div>
-                        <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] font-bold mt-1 sm:mt-1.5">
-                          <span className="text-blue-600 uppercase tracking-wider">{assignment.subject.subjectName}</span>
-                          <span className="w-1 sm:w-1.5 h-1 sm:h-1.5 rounded-full bg-slate-200" />
-                          <span className="text-slate-400 uppercase tracking-wider">Due: {formatDate(assignment.dueDate)}</span>
-                        </div>
-                      </div>
-                      <div className={cn(
-                        "w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-slate-50 group-hover:bg-slate-100 transition-all duration-300 flex-shrink-0",
-                        expandedAssignments.has(assignment.assignmentId) ? "rotate-180 bg-blue-50 text-blue-600" : "text-slate-400"
-                      )}>
-                        <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5" />
-                      </div>
-                    </div>
-                    
-                    {expandedAssignments.has(assignment.assignmentId) && (
-                      <div className="px-3 sm:px-5 pb-3 sm:pb-5 pt-0 border-t border-slate-50 animate-in slide-in-from-top-2 duration-300">
-                        <div className="mt-3 sm:mt-4 p-3 sm:p-5 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100">
-                          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed font-semibold">
-                            {assignment.description}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-3 sm:gap-6 mt-4 sm:mt-5 pt-4 sm:pt-5 border-t border-slate-200/50 text-[10px] uppercase tracking-widest font-black text-slate-400">
-                            <span className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-white rounded-lg shadow-sm">
-                              <User className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-slate-500" />
-                              <span className="text-slate-400">Teacher:</span> <span className="text-slate-700">{assignment.subject.teacherName}</span>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-sm sm:text-base font-bold text-slate-800 leading-tight mb-1.5">
+                            {entry.title}
+                          </h4>
+                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            <Badge className="text-[10px] sm:text-xs bg-violet-50 text-violet-700 border-violet-200 font-semibold px-2 py-0.5">
+                              {entry.subjectName}
+                            </Badge>
+                            <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1">
+                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+                              {entry.diaryDate}
                             </span>
-                            {assignment.submittedDate && (
-                              <span className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-white rounded-lg shadow-sm">
-                                <CheckCircle2 className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-emerald-500" />
-                                <span className="text-slate-400">Submitted:</span> <span className="text-slate-700">{formatDate(assignment.submittedDate)}</span>
-                              </span>
-                            )}
-                            {assignment.grade && (
-                              <span className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-white rounded-lg shadow-sm">
-                                <TrendingUp className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-violet-500" />
-                                <span className="text-slate-400">Grade:</span> <span className="text-violet-700">{assignment.grade}</span>
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
-                    )}
+
+                      <div className="flex-1 mt-1">
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-wrap break-words">
+                          {entry.content}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
+                            <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] sm:text-xs text-slate-400 font-medium">Teacher</p>
+                            <p className="text-xs sm:text-sm text-slate-700 font-semibold truncate">
+                              {entry.teacherName}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -85,7 +85,7 @@ import type {
   TeacherUpdate,
   TeacherResponse,
 } from "@/types/lms";
-import  useHasMounted  from "@/lib/hooks/useHasMounted";
+import { TeacherListSkeleton } from "@/app/_components/skeletons/TeacherListSkeleton";
 
 const TABS = [
   { id: "all", label: "All Teachers" },
@@ -129,8 +129,9 @@ const AVATAR_COLORS = [
   { bg: "bg-purple-100", text: "text-purple-600" },
 ];
 
+type ViewState = "loading" | "error" | "empty" | "content";
+
 export default function TeachersPage() {
-  const hasMounted = useHasMounted();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -331,6 +332,14 @@ export default function TeachersPage() {
   const teachers = teachersData?.content || [];
   const totalTeachers = teachersData?.totalElements || 0;
 
+  const viewState: ViewState = teachersLoading
+  ? "loading"
+  : teachersError
+  ? "error"
+  : teachers.length === 0
+  ? "empty"
+  : "content";
+
   const handleExport = () => {
     const data = teachers.map((teacher) => ({
       teacherId: teacher.teacherId,
@@ -354,14 +363,14 @@ export default function TeachersPage() {
     });
   };
 
-  if (!hasMounted) return null;
-
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Teachers</h1>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
+            Teachers
+          </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
             Manage faculty, departments, and teaching assignments
           </p>
@@ -376,7 +385,10 @@ export default function TeachersPage() {
             <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <Button onClick={() => setAddDialogOpen(true)} className="gap-1.5 sm:gap-2 text-xs sm:text-sm">
+          <Button
+            onClick={() => setAddDialogOpen(true)}
+            className="gap-1.5 sm:gap-2 text-xs sm:text-sm"
+          >
             <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Add Teacher</span>
             <span className="sm:hidden">Add</span>
@@ -392,7 +404,9 @@ export default function TeachersPage() {
               <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground">Total Teachers</p>
+              <p className="text-[10px] sm:text-xs text-muted-foreground">
+                Total Teachers
+              </p>
               <p className="text-lg sm:text-xl font-bold">
                 {teachersLoading ? (
                   <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-muted-foreground" />
@@ -460,290 +474,347 @@ export default function TeachersPage() {
         </div>
       </div>
 
-      {/* Teachers Display */}
-      {teachersLoading ? (
-        <div className="flex items-center justify-center py-16 sm:py-20">
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="h-6 w-6 sm:h-8 sm:w-8 animate-spin text-muted-foreground" />
-            <p className="text-xs sm:text-sm text-muted-foreground">Loading teachers...</p>
-          </div>
-        </div>
-      ) : teachersError ? (
-        <div className="flex items-center justify-center py-16 sm:py-20">
-          <div className="flex flex-col items-center gap-3">
-            <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-destructive" />
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Failed to load teachers
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetchTeachers()}
-              className="text-xs sm:text-sm"
-            >
-              <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" /> Retry
-            </Button>
-          </div>
-        </div>
-      ) : teachers.length === 0 ? (
-        <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
-          <GraduationCap className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-sm text-muted-foreground">No teachers found</p>
-          {(debouncedSearch || selectedDepartment !== "all") && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 text-xs"
-              onClick={() => {
-                setSearch("");
-                setDebouncedSearch("");
-                setSelectedDepartment("all");
-              }}
-            >
-              Clear filters
-            </Button>
+            {/* Teachers Display with smooth transitions */}
+      <div className="relative">
+        {/* Loading State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "loading"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0"
           )}
+        >
+          <TeacherListSkeleton viewMode={viewMode} />
         </div>
-      ) : viewMode === "grid" ? (
-        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {teachers.map((teacher, index) => {
-            const statusConfig = STATUS_CONFIG.ACTIVE;
-            const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
-            const initials = teacher.teacherName
-              .split(" ")
-              .map((n) => n[0])
-              .join("")
-              .toUpperCase()
-              .slice(0, 2);
 
-            return (
-              <div
-                key={teacher.teacherId}
-                className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer group"
-                onClick={() =>
-                  router.push(`/admin/teachers/${teacher.teacherId}`)
-                }
+        {/* Error State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "error"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0"
+          )}
+        >
+          <div className="flex items-center justify-center py-16 sm:py-20">
+            <div className="flex flex-col items-center gap-3">
+              <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-destructive" />
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Failed to load teachers
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => refetchTeachers()}
+                className="text-xs sm:text-sm"
               >
-                <div className="p-3 sm:p-5">
-                  {/* Top Section */}
-                  <div className="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
-                    <div
-                      className={cn(
-                        "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-bold flex-shrink-0",
-                        avatarColor.bg,
-                        avatarColor.text,
-                      )}
-                    >
-                      {initials}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold truncate">
-                        {teacher.teacherName}
-                      </h3>
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {teacher.teacherPhoneNumber}
-                      </p>
-                      <Badge
-                        className={cn(
-                          "mt-1.5 sm:mt-2 border text-[10px]",
-                          statusConfig.bg,
-                          statusConfig.text,
-                          statusConfig.border,
-                        )}
-                      >
-                        <statusConfig.icon className="h-3 w-3 mr-1" />
-                        {statusConfig.label}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="border-t mb-3 sm:mb-4" />
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-center bg-muted/30 rounded-lg p-2.5 sm:p-3">
-                    <div className="flex flex-col items-center justify-center">
-                      <p className="text-sm sm:text-base font-bold">
-                        {teacher.assignmentResponse?.classesTaught ?? 0}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Classes
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-center justify-center">
-                      <p className="text-sm sm:text-base font-bold">
-                        {teacher.assignmentResponse?.subjectsTaught ?? 0}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        Subjects
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 mt-3 sm:mt-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs h-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(`/admin/teachers/${teacher.teacherId}`);
-                      }}
-                    >
-                      <Eye className="h-3.5 w-3.5 mr-1 sm:mr-1.5" /> View
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-xs h-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingTeacher(teacher);
-                        setEditTeacherName(teacher.teacherName);
-                        setEditTeacherPhoneNumber(teacher.teacherPhoneNumber);
-                        setEditDialogOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-3.5 w-3.5 mr-1 sm:mr-1.5" /> Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteDialog(teacher);
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+                <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />{" "}
+                Retry
+              </Button>
+            </div>
+          </div>
         </div>
-      ) : (
-        /* List View */
-        <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-          <div className="overflow-x-auto no-scrollbar">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-muted/30">
-                  <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Teacher
-                  </th>
-                  <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Phone
-                  </th>
-                  <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Classes & Subjects
-                  </th>
-                  <th className="px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Status
-                  </th>
-                  <th className="px-3 sm:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground w-16"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {teachers.map((teacher, index) => {
-                  const statusConfig = STATUS_CONFIG.ACTIVE;
-                  const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
-                  
-                  return (
-                    <tr
-                      key={teacher.teacherId}
-                      className="hover:bg-muted/20 transition-colors cursor-pointer"
-                      onClick={() => router.push(`/admin/teachers/${teacher.teacherId}`)}
-                    >
-                      <td className="px-3 sm:px-5 py-3">
-                        <div className="flex items-center gap-2 sm:gap-3">
-                          <div
-                            className={cn(
-                              "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0",
-                              avatarColor.bg,
-                              avatarColor.text,
-                            )}
-                          >
-                            {teacher.teacherName.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">
-                              {teacher.teacherName}
-                            </p>
-                            <p className="sm:hidden text-[11px] text-muted-foreground">
-                              {teacher.teacherPhoneNumber}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-sm text-muted-foreground">
-                        {teacher.teacherPhoneNumber}
-                      </td>
-                      <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
-                        {teacher.assignmentResponse?.classesTaught ?? 0} Cls • {teacher.assignmentResponse?.subjectsTaught ?? 0} Sub
-                      </td>
-                      <td className="px-3 sm:px-5 py-3 text-center">
-                        <Badge
+
+        {/* Empty State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "empty"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0"
+          )}
+        >
+          <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
+            <GraduationCap className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No teachers found</p>
+            {(debouncedSearch || selectedDepartment !== "all") && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 text-xs"
+                onClick={() => {
+                  setSearch("");
+                  setDebouncedSearch("");
+                  setSelectedDepartment("all");
+                }}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Content State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "content"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0"
+          )}
+        >
+          {viewMode === "grid" ? (
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {teachers.map((teacher, index) => {
+                const statusConfig = STATUS_CONFIG.ACTIVE;
+                const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
+                const initials = teacher.teacherName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+
+                return (
+                  <div
+                    key={teacher.teacherId}
+                    className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer group"
+                    onClick={() =>
+                      router.push(`/admin/teachers/${teacher.teacherId}`)
+                    }
+                  >
+                    <div className="p-3 sm:p-5">
+                      {/* Top Section */}
+                      <div className="flex items-start gap-2 sm:gap-3 mb-3 sm:mb-4">
+                        <div
                           className={cn(
-                            "border text-[10px] px-2 py-0 h-5",
-                            statusConfig.bg,
-                            statusConfig.text,
-                            statusConfig.border,
+                            "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-bold flex-shrink-0",
+                            avatarColor.bg,
+                            avatarColor.text,
                           )}
                         >
-                          {statusConfig.label}
-                        </Badge>
-                      </td>
-                      <td className="px-3 sm:px-5 py-3 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/admin/teachers/${teacher.teacherId}`);
-                            }}>
-                              <Eye className="mr-2 h-4 w-4" /> View
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingTeacher(teacher);
-                              setEditTeacherName(teacher.teacherName);
-                              setEditTeacherPhoneNumber(teacher.teacherPhoneNumber);
-                              setEditDialogOpen(true);
-                            }}>
-                              <Pencil className="mr-2 h-4 w-4" /> Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteDialog(teacher);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold truncate">
+                            {teacher.teacherName}
+                          </h3>
+                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                            {teacher.teacherPhoneNumber}
+                          </p>
+                          <Badge
+                            className={cn(
+                              "mt-1.5 sm:mt-2 border text-[10px]",
+                              statusConfig.bg,
+                              statusConfig.text,
+                              statusConfig.border,
+                            )}
+                          >
+                            <statusConfig.icon className="h-3 w-3 mr-1" />
+                            {statusConfig.label}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      {/* Divider */}
+                      <div className="border-t mb-3 sm:mb-4" />
+
+                      {/* Stats */}
+                      <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-center bg-muted/30 rounded-lg p-2.5 sm:p-3">
+                        <div className="flex flex-col items-center justify-center">
+                          <p className="text-sm sm:text-base font-bold">
+                            {teacher.assignmentResponse?.classesTaught ?? 0}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Classes
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-center justify-center">
+                          <p className="text-sm sm:text-base font-bold">
+                            {teacher.assignmentResponse?.subjectsTaught ?? 0}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Subjects
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2 mt-3 sm:mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/admin/teachers/${teacher.teacherId}`);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1 sm:mr-1.5" /> View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingTeacher(teacher);
+                            setEditTeacherName(teacher.teacherName);
+                            setEditTeacherPhoneNumber(teacher.teacherPhoneNumber);
+                            setEditDialogOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5 mr-1 sm:mr-1.5" /> Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteDialog(teacher);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* List View */
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+              <div className="overflow-x-auto no-scrollbar">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Teacher
+                      </th>
+                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Phone
+                      </th>
+                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Classes & Subjects
+                      </th>
+                      <th className="px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Status
+                      </th>
+                      <th className="px-3 sm:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground w-16"></th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody className="divide-y">
+                    {teachers.map((teacher, index) => {
+                      const statusConfig = STATUS_CONFIG.ACTIVE;
+                      const avatarColor =
+                        AVATAR_COLORS[index % AVATAR_COLORS.length];
+
+                      return (
+                        <tr
+                          key={teacher.teacherId}
+                          className="hover:bg-muted/20 transition-colors cursor-pointer"
+                          onClick={() =>
+                            router.push(`/admin/teachers/${teacher.teacherId}`)
+                          }
+                        >
+                          <td className="px-3 sm:px-5 py-3">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div
+                                className={cn(
+                                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0",
+                                  avatarColor.bg,
+                                  avatarColor.text,
+                                )}
+                              >
+                                {teacher.teacherName.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">
+                                  {teacher.teacherName}
+                                </p>
+                                <p className="sm:hidden text-[11px] text-muted-foreground">
+                                  {teacher.teacherPhoneNumber}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-sm text-muted-foreground">
+                            {teacher.teacherPhoneNumber}
+                          </td>
+                          <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
+                            {teacher.assignmentResponse?.classesTaught ?? 0} Cls •{" "}
+                            {teacher.assignmentResponse?.subjectsTaught ?? 0} Sub
+                          </td>
+                          <td className="px-3 sm:px-5 py-3 text-center">
+                            <Badge
+                              className={cn(
+                                "border text-[10px] px-2 py-0 h-5",
+                                statusConfig.bg,
+                                statusConfig.text,
+                                statusConfig.border,
+                              )}
+                            >
+                              {statusConfig.label}
+                            </Badge>
+                          </td>
+                          <td className="px-3 sm:px-5 py-3 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(
+                                      `/admin/teachers/${teacher.teacherId}`,
+                                    );
+                                  }}
+                                >
+                                  <Eye className="mr-2 h-4 w-4" /> View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingTeacher(teacher);
+                                    setEditTeacherName(teacher.teacherName);
+                                    setEditTeacherPhoneNumber(
+                                      teacher.teacherPhoneNumber,
+                                    );
+                                    setEditDialogOpen(true);
+                                  }}
+                                >
+                                  <Pencil className="mr-2 h-4 w-4" /> Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteDialog(teacher);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Recent Activity Table */}
       <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b">
-          <h2 className="text-base sm:text-lg font-semibold">Recent Activity</h2>
+          <h2 className="text-base sm:text-lg font-semibold">
+            Recent Activity
+          </h2>
         </div>
         <div className="overflow-x-auto no-scrollbar">
           <table className="w-full text-sm">
@@ -1022,7 +1093,9 @@ export default function TeachersPage() {
               className="gap-2 text-sm font-medium w-full sm:w-auto"
             >
               <Pencil className="h-4 w-4" />
-              {updateTeacherMutation.isPending ? "Updating..." : "Update Teacher"}
+              {updateTeacherMutation.isPending
+                ? "Updating..."
+                : "Update Teacher"}
             </Button>
           </div>
         </DialogContent>
@@ -1039,7 +1112,9 @@ export default function TeachersPage() {
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
                 <Trash2 className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
               </div>
-              <AlertDialogTitle className="text-base sm:text-lg">Delete Teacher?</AlertDialogTitle>
+              <AlertDialogTitle className="text-base sm:text-lg">
+                Delete Teacher?
+              </AlertDialogTitle>
             </div>
             <AlertDialogDescription className="text-xs sm:text-sm leading-relaxed">
               This will permanently remove{" "}
@@ -1049,7 +1124,9 @@ export default function TeachersPage() {
           </AlertDialogHeader>
           <div className="border-t my-2" />
           <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto text-xs sm:text-sm">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="w-full sm:w-auto text-xs sm:text-sm">
+              Cancel
+            </AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto text-xs sm:text-sm"
               disabled={deleteTeacherMutation.isPending}

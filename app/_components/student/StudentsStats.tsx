@@ -29,8 +29,8 @@ export default function StudentsStats({
           <div>
             <p className="text-xs text-muted-foreground">Total Students</p>
             <p className="text-xl font-bold">
-              {studentsLoading ? (
-                <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                {studentsLoading ? (
+                <span className="inline-block h-5 w-12 bg-muted rounded animate-pulse" />
               ) : (
                 totalStudents
               )}
@@ -46,8 +46,8 @@ export default function StudentsStats({
           <div>
             <p className="text-xs text-muted-foreground">Active Classes</p>
             <p className="text-xl font-bold">
-              {classesLoading ? (
-                <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                {classesLoading ? (
+                <span className="inline-block h-5 w-12 bg-muted rounded animate-pulse" />
               ) : (
                 classesCount
               )}

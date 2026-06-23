@@ -47,7 +47,8 @@ import {
   SheetTrigger,
 } from "@/app/_components/ui/sheet";
 import { cn } from "@/lib/utils";
-import  useHasMounted  from "@/lib/hooks/useHasMounted";
+import useHasMounted from "@/lib/hooks/useHasMounted";
+import { FeesSkeleton } from "@/app/_components/skeletons/FeesSkeleton";
 
 // Mock Data Types
 interface FeePayment {
@@ -303,7 +304,7 @@ export default function FeesPage() {
     ...MOCK_MONTHLY_COLLECTIONS.map((m) => Math.max(m.collected, m.expected))
   );
 
-  if (!hasMounted) return null;
+  if (!hasMounted) return <FeesSkeleton />;
 
   // Mobile Filter Content
   const MobileFilterContent = () => (

@@ -79,7 +79,8 @@ import type {
   SchoolClassCreate,
   SchoolClassUpdate,
 } from "@/types/lms";
-import  useHasMounted  from "@/lib/hooks/useHasMounted";
+import useHasMounted from "@/lib/hooks/useHasMounted";
+import { AcademicYearsSkeleton } from "@/app/_components/skeletons/AcademicYearsSkeleton";
 
 // Helper function to format date
 function fmtDate(d: string) {
@@ -159,7 +160,12 @@ export default function AcademicYearsPage() {
     classId: number;
   } | null>(null);
 
-  const { data: academicYearData } = useQuery({
+  const {
+    data: academicYearData,
+    isLoading: academicYearsLoading,
+    isError: academicYearsError,
+    refetch: refetchAcademicYears,
+  } = useQuery({
     queryKey: ["academic-years"],
     queryFn: getAcademicYears,
   });
@@ -293,6 +299,15 @@ export default function AcademicYearsPage() {
           )
       )
   );
+
+  type ViewState = "loading" | "error" | "empty" | "content";
+  const viewState: ViewState = academicYearsLoading
+    ? "loading"
+    : academicYearsError
+      ? "error"
+      : filteredYears.length === 0
+        ? "empty"
+        : "content";
 
   // Academic Year CRUD
   const openCreateYear = () => {
@@ -602,7 +617,7 @@ export default function AcademicYearsPage() {
     y => !y.isActive && new Date(y.startDate) > new Date()
   ).length;
 
-  if (!hasMounted) return null;
+  if (!hasMounted) return <AcademicYearsSkeleton />;
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
@@ -620,105 +635,180 @@ export default function AcademicYearsPage() {
         </Button>
       </div>
 
-      {/* Stats Overview */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Total Years</p>
-              <p className="text-lg sm:text-xl font-bold">{totalYears}</p>
-            </div>
-          </div>
-        </div>
-        
-        <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Year</p>
-              <p className="text-lg sm:text-xl font-bold truncate max-w-[100px] sm:max-w-[120px]">
-                {activeYear?.academicYear || "None"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Classes</p>
-              <p className="text-lg sm:text-xl font-bold">{totalClasses}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <Users className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Sections</p>
-              <p className="text-lg sm:text-xl font-bold">{totalSections}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search with Context */}
-      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
-        <div className="relative w-full sm:w-80">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search years, classes, or sections..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 h-10 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-colors text-sm"
-          />
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2"
-            >
-              <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-            </button>
+      {/* Main content with viewState transitions */}
+      <div className="relative">
+        {/* Loading */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "loading"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
           )}
+        >
+          <AcademicYearsSkeleton />
         </div>
-        {search && (
-          <p className="text-xs text-muted-foreground">
-            Found {filteredYears.length} {filteredYears.length === 1 ? 'year' : 'years'}
-          </p>
-        )}
-      </div>
 
-      {/* Enhanced Accordion List */}
-      <div className="space-y-2 sm:space-y-3">
-        {filteredYears.length === 0 ? (
-          <div className="text-center py-12 sm:py-16 bg-card rounded-xl border-2 border-dashed">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
-              <CalendarDays className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-base sm:text-lg font-semibold mb-2">No Academic Years Found</h3>
-            <p className="text-xs sm:text-sm text-muted-foreground mb-4 max-w-sm mx-auto px-4">
-              {search ? "Try adjusting your search terms" : "Get started by creating your first academic year"}
-            </p>
-            {!search && (
-              <Button onClick={openCreateYear} variant="outline" className="gap-2 text-sm">
-                <Plus className="h-4 w-4" />
-                Create First Year
+        {/* Error */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "error"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
+          )}
+        >
+          <div className="flex items-center justify-center py-16 sm:py-20">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <AlertCircle className="h-5 w-5 text-destructive" />
+              </div>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Error loading academic years
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void refetchAcademicYears()}
+              >
+                Retry
               </Button>
-            )}
+            </div>
           </div>
-        ) : (
-          filteredYears.map((year) => (
+        </div>
+
+        {/* Empty */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "empty"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
+          )}
+        >
+          <div className="space-y-4 sm:space-y-6">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-muted rounded-lg flex-shrink-0" />
+                    <div className="min-w-0 space-y-1 flex-1">
+                      <div className="h-3 w-20 bg-muted rounded" />
+                      <div className="h-5 w-12 bg-muted rounded" />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-center py-12 sm:py-16 bg-card rounded-xl border-2 border-dashed">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                <CalendarDays className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-base sm:text-lg font-semibold mb-2">No Academic Years Found</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground mb-4 max-w-sm mx-auto px-4">
+                {search ? "Try adjusting your search terms" : "Get started by creating your first academic year"}
+              </p>
+              {!search && (
+                <Button onClick={openCreateYear} variant="outline" className="gap-2 text-sm">
+                  <Plus className="h-4 w-4" />
+                  Create First Year
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "content"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
+          )}
+        >
+          <div className="space-y-4 sm:space-y-6">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Total Years</p>
+                    <p className="text-lg sm:text-xl font-bold">{totalYears}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Year</p>
+                    <p className="text-lg sm:text-xl font-bold truncate max-w-[100px] sm:max-w-[120px]">
+                      {activeYear?.academicYear || "None"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Classes</p>
+                    <p className="text-lg sm:text-xl font-bold">{totalClasses}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Users className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Sections</p>
+                    <p className="text-lg sm:text-xl font-bold">{totalSections}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Search with Context */}
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search years, classes, or sections..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 h-10 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-colors text-sm"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                  >
+                    <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
+                  </button>
+                )}
+              </div>
+              {search && (
+                <p className="text-xs text-muted-foreground">
+                  Found {filteredYears.length} {filteredYears.length === 1 ? 'year' : 'years'}
+                </p>
+              )}
+            </div>
+
+            {/* Enhanced Accordion List */}
+            <div className="space-y-2 sm:space-y-3">
+              {filteredYears.map((year) => (
             <div 
               key={year.academicYearId} 
               className={cn(
@@ -1028,8 +1118,10 @@ export default function AcademicYearsPage() {
                 </div>
               )}
             </div>
-          ))
-        )}
+          ))}
+      </div>
+          </div>
+        </div>
       </div>
 
       {/* Academic Year Dialog */}

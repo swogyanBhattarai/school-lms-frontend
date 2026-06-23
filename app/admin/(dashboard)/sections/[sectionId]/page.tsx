@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Users,
@@ -15,7 +15,7 @@ import {
   UserCircle,
   Calendar,
   Star,
-  Loader2,
+
   AlertCircle,
   Phone,
   ArrowUpRight,
@@ -29,6 +29,7 @@ import {
   FileSpreadsheet,
   X,
   Filter,
+  RotateCcw,
 } from "lucide-react";
 import SectionHeader from "@/app/_components/SectionHeader";
 import { Button } from "@/app/_components/ui/button";
@@ -78,7 +79,7 @@ import { cn, getApiErrorMessage } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
-import { convertADToBS } from "@/lib/nepali-calendar";
+import { convertADToBS, getTodayADString } from "@/lib/nepali-calendar";
 import { getSectionById } from "@/lib/api/section";
 import { getAllSubjects } from "@/lib/api/subject";
 import { getAllTeachers } from "@/lib/api/teacher";
@@ -105,84 +106,27 @@ import type {
   TeacherResponse,
   StudentBulkUploadResponse,
   StudentBulkUploadRowResponse,
+  DiaryResponse,
+  DiaryCreate,
+  DiaryUpdate,
+  DiaryUpdateAdmin,
 } from "@/types/lms";
 import {
   createClassAssignment,
   updateClassAssignment,
   deleteClassAssignment,
 } from "@/lib/api/classAssignment";
-import  useHasMounted  from "@/lib/hooks/useHasMounted";
+import {
+  createDiary,
+  findAllFiltered,
+  updateDiary,
+  updateDiaryAdmin,
+  deleteDiary as deleteDiaryApi,
+} from "@/lib/api/diary";
+import useHasMounted from "@/lib/hooks/useHasMounted";
+import { SectionDetailSkeleton } from "@/app/_components/skeletons/SectionDetailSkeleton";
 
 type AssignmentRole = TeacherRoles;
-
-interface DiaryEntry {
-  id: number;
-  date: string;
-  subject: string;
-  teacherName: string;
-  title: string;
-  description: string;
-  attachments?: number;
-  createdBy: string;
-}
-
-const MOCK_DIARY: DiaryEntry[] = [
-  {
-    id: 1,
-    date: "2026-05-10",
-    subject: "Mathematics",
-    teacherName: "Mr. Ram Sharma",
-    title: "Algebra Practice Problems",
-    description:
-      "Complete exercises 5.1 to 5.4 from the textbook. Focus on quadratic equations and their solutions.",
-    attachments: 2,
-    createdBy: "Mr. Ram Sharma",
-  },
-  {
-    id: 2,
-    date: "2026-05-09",
-    subject: "Science",
-    teacherName: "Mrs. Sita Adhikari",
-    title: "Chemical Reactions Lab Report",
-    description:
-      "Write a detailed lab report on the chemical reactions experiment conducted in class. Include observations and conclusions.",
-    attachments: 1,
-    createdBy: "Mrs. Sita Adhikari",
-  },
-  {
-    id: 3,
-    date: "2026-05-09",
-    subject: "English",
-    teacherName: "Mr. Hari Thapa",
-    title: "Essay Writing - Environmental Conservation",
-    description:
-      "Write a 500-word essay on the importance of environmental conservation. Submit by Friday.",
-    attachments: 0,
-    createdBy: "Mr. Hari Thapa",
-  },
-  {
-    id: 4,
-    date: "2026-05-08",
-    subject: "Nepali",
-    teacherName: "Ms. Gita Rai",
-    title: "कविता लेखन",
-    description:
-      "प्रकृति विषयमा एउटा कविता लेख्नुहोस् र आइतबार सम्म पेश गर्नुहोस्।",
-    attachments: 0,
-    createdBy: "Ms. Gita Rai",
-  },
-  {
-    id: 5,
-    date: "2026-05-08",
-    subject: "Social Studies",
-    teacherName: "Mr. Deepak Gurung",
-    title: "Map Work - South Asia",
-    description:
-      "Label all countries and major rivers of South Asia on the provided map. Color code different regions.",
-    attachments: 1,
-    createdBy: "Mr. Deepak Gurung",
-  },
-];
 
 type Tab = "students" | "assignments" | "diary";
 
@@ -210,6 +154,14 @@ export default function SectionDetailsPage() {
   const { toast } = useToast();
   const bulkUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("students");
+
+  // Support navigating to a specific tab via URL hash (e.g. #assignments)
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "") as Tab;
+    if (hash === "assignments" || hash === "diary") {
+      setActiveTab(hash);
+    }
+  }, []);
   const [search, setSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -222,9 +174,24 @@ export default function SectionDetailsPage() {
     useState<SectionAssignmentStudentResponse | null>(null);
   const [editAssignmentDialog, setEditAssignmentDialog] =
     useState<ClassAssignmentResponse | null>(null);
-  const [editDiaryDialog, setEditDiaryDialog] = useState<DiaryEntry | null>(
+  const [editDiaryDialog, setEditDiaryDialog] = useState<DiaryResponse | null>(
     null,
   );
+  const [addDiaryForm, setAddDiaryForm] = useState({
+    diaryDate: "",
+    subjectId: "",
+    teacherId: "",
+    title: "",
+    content: "",
+  });
+  const [editDiaryForm, setEditDiaryForm] = useState({
+    diaryDate: "",
+    subjectId: "",
+    teacherId: "",
+    title: "",
+    content: "",
+  });
+  const [diaryFilterDate, setDiaryFilterDate] = useState(getTodayADString());
   const [deleteDialog, setDeleteDialog] = useState<{
     type: string;
     id: number;
@@ -251,10 +218,6 @@ export default function SectionDetailsPage() {
   const [editStudentForm, setEditStudentForm] = useState<StudentUpdate>({
     studentName: "",
     dateOfBirth: "",
-    parentName1: "",
-    parentPhoneNumber1: "",
-    parentName2: "",
-    parentPhoneNumber2: "",
   });
   const [assignmentForm, setAssignmentForm] = useState({
     teacherId: "",
@@ -368,17 +331,8 @@ export default function SectionDetailsPage() {
 
   const updateStudentMutation = useMutation({
     mutationFn: (payload: { studentId: number; student: StudentUpdate }) => {
-      const studentData = {
-        ...payload.student,
-        parentName2: payload.student.parentName2?.trim()
-          ? payload.student.parentName2
-          : null,
-        parentPhoneNumber2: payload.student.parentPhoneNumber2?.trim()
-          ? payload.student.parentPhoneNumber2
-          : null,
-      };
       return api
-        .put(`/api/student/${payload.studentId}`, studentData)
+        .put(`/api/student/${payload.studentId}`, payload.student)
         .then((res) => res.data);
     },
     onSuccess: () => {
@@ -502,6 +456,83 @@ export default function SectionDetailsPage() {
     },
   });
 
+  // Diary query
+  const diaryDateBS = useMemo(() => {
+    return convertADToBS(new Date(diaryFilterDate));
+  }, [diaryFilterDate]);
+
+  const { data: diaryPage, isLoading: diaryLoading } = useQuery({
+    queryKey: ["diary", sectionId, diaryFilterDate],
+    queryFn: () =>
+      findAllFiltered({
+        sectionId,
+        startDate: diaryFilterDate,
+        endDate: diaryFilterDate,
+        pageSize: 100,
+      }),
+    enabled: hasValidSectionId,
+  });
+  const diaryEntries: DiaryResponse[] = diaryPage?.content ?? [];
+
+  // Diary mutations
+  const createDiaryMutation = useMutation({
+    mutationFn: (payload: DiaryCreate) => createDiary(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["diary", sectionId] });
+      toast({
+        title: "Diary entry created",
+        description: "Daily diary entry has been added successfully.",
+      });
+      setAddDiaryDialog(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to create diary entry",
+        description: getApiErrorMessage(error, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateDiaryMutation = useMutation({
+    mutationFn: (payload: { diaryId: number; data: DiaryUpdateAdmin }) =>
+      updateDiaryAdmin(payload.diaryId, payload.data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["diary", sectionId] });
+      toast({
+        title: "Diary entry updated",
+        description: "Daily diary entry has been updated successfully.",
+      });
+      setEditDiaryDialog(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to update diary entry",
+        description: getApiErrorMessage(error, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteDiaryMutation = useMutation({
+    mutationFn: (diaryId: number) => deleteDiaryApi(diaryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["diary", sectionId] });
+      toast({
+        title: "Diary entry deleted",
+        description: "Daily diary entry has been removed.",
+      });
+      setDeleteDialog(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to delete diary entry",
+        description: getApiErrorMessage(error, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
+
   // Stats
   const studentCount = section?.students.length ?? 0;
   const teacherCount = new Set(
@@ -526,10 +557,10 @@ export default function SectionDetailsPage() {
         a.subjectName.toLowerCase().includes(search.toLowerCase()),
     )
     .sort((a, b) => a.classAssignmentId - b.classAssignmentId);
-  const filteredDiary = MOCK_DIARY.filter(
+  const filteredDiary = diaryEntries.filter(
     (d) =>
       d.title.toLowerCase().includes(search.toLowerCase()) ||
-      d.subject.toLowerCase().includes(search.toLowerCase()) ||
+      d.subjectName.toLowerCase().includes(search.toLowerCase()) ||
       d.teacherName.toLowerCase().includes(search.toLowerCase()),
   );
 
@@ -550,7 +581,7 @@ export default function SectionDetailsPage() {
       id: "diary" as Tab,
       label: "Daily Diary",
       icon: BookMarked,
-      count: MOCK_DIARY.length,
+      count: diaryEntries.length,
     },
   ];
 
@@ -577,10 +608,6 @@ export default function SectionDetailsPage() {
     setEditStudentForm({
       studentName: student.studentName,
       dateOfBirth: "",
-      parentName1: "",
-      parentPhoneNumber1: "",
-      parentName2: "",
-      parentPhoneNumber2: "",
     });
   };
 
@@ -634,16 +661,7 @@ export default function SectionDetailsPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">
-            Loading section details...
-          </p>
-        </div>
-      </div>
-    );
+    return <SectionDetailSkeleton />;
   }
 
   if (isError || !section) {
@@ -749,7 +767,7 @@ export default function SectionDetailsPage() {
                 {activeTab === "assignments" &&
                   `${filteredAssignments.length}/${teacherCount}`}
                 {activeTab === "diary" &&
-                  `${filteredDiary.length}/${MOCK_DIARY.length}`}
+                  `${filteredDiary.length}/${diaryEntries.length}`}
               </Badge>
             </h2>
           </div>
@@ -799,6 +817,35 @@ export default function SectionDetailsPage() {
                     </SheetHeader>
                   </div>
                   <div className="p-5 space-y-4">
+                    {activeTab === "diary" && (
+                      <div>
+                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
+                          Diary Date
+                        </label>
+                        <div className="flex flex-col gap-2">
+                          <MiniCalendar
+                            value={diaryDateBS}
+                            onChange={(date) => {
+                              setDiaryFilterDate(date);
+                              setMobileFilterOpen(false);
+                            }}
+                            placeholder="Select date"
+                          />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setDiaryFilterDate(getTodayADString());
+                              setMobileFilterOpen(false);
+                            }}
+                            className="w-full gap-1.5 rounded-xl text-xs h-9"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                            Today
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
                         View Mode
@@ -842,6 +889,26 @@ export default function SectionDetailsPage() {
             </div>
 
             {/* Desktop Search */}
+            {/* Diary date filter — shown before search when diary tab is active */}
+            {activeTab === "diary" && (
+              <div className="hidden sm:flex items-center gap-2">
+                <MiniCalendar
+                  value={diaryDateBS}
+                  onChange={setDiaryFilterDate}
+                  placeholder="Select date"
+                  className="w-[200px]"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDiaryFilterDate(getTodayADString())}
+                  className="shrink-0 gap-1.5 rounded-xl text-xs h-9 px-3"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Today
+                </Button>
+              </div>
+            )}
             <div className="relative hidden sm:block sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -993,7 +1060,7 @@ export default function SectionDetailsPage() {
           >
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
               {bulkUploadMutation.isPending ? (
-                <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin text-blue-600" />
+                <span className="text-xs font-semibold text-blue-600">Uploading...</span>
               ) : (
                 <Upload className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
               )}
@@ -1462,7 +1529,13 @@ export default function SectionDetailsPage() {
       {/* Diary Tab */}
       {activeTab === "diary" && (
         <>
-          {filteredDiary.length === 0 ? (
+          {diaryLoading ? (
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 animate-pulse">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-40 bg-muted rounded-xl" />
+              ))}
+            </div>
+          ) : filteredDiary.length === 0 ? (
             <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
               <BookMarked className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground">
@@ -1472,99 +1545,90 @@ export default function SectionDetailsPage() {
           ) : (
             <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filteredDiary.map((entry, index) => {
-                const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
+                const SUBJECT_COLORS = [
+                  { bg: "bg-blue-50", text: "text-blue-700" },
+                  { bg: "bg-violet-50", text: "text-violet-700" },
+                  { bg: "bg-teal-50", text: "text-teal-700" },
+                  { bg: "bg-amber-50", text: "text-amber-700" },
+                  { bg: "bg-emerald-50", text: "text-emerald-700" },
+                  { bg: "bg-rose-50", text: "text-rose-700" },
+                  { bg: "bg-cyan-50", text: "text-cyan-700" },
+                  { bg: "bg-purple-50", text: "text-purple-700" },
+                ];
+                const color = SUBJECT_COLORS[index % SUBJECT_COLORS.length];
+
                 return (
                   <div
-                    key={entry.id}
-                    className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 group cursor-pointer"
+                    key={entry.diaryId}
+                    className="rounded-xl border bg-card shadow-sm hover:shadow-md hover:border-foreground/15 transition-all flex flex-col h-full"
                   >
-                    <div className="p-4 sm:p-5">
-                      <div className="flex items-start justify-between gap-3 sm:gap-4 mb-2 sm:mb-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="text-sm font-semibold truncate">
-                              {entry.title}
-                            </h3>
-                          </div>
-                          <Badge className="text-[10px] sm:text-xs">
-                            {entry.subject}
-                          </Badge>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 flex-shrink-0"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditDiaryDialog(entry);
-                              }}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteDialog({
-                                  type: "diary",
-                                  id: entry.id,
-                                  name: entry.title,
-                                });
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 mb-3 sm:mb-4">
-                        {entry.description}
-                      </p>
-                      <div className="border-t pt-2 sm:pt-3 mb-2 sm:mb-3">
-                        <div className="flex items-center gap-3 sm:gap-4 text-[11px] sm:text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {entry.date}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <GraduationCap className="h-3 w-3" />
-                            {entry.teacherName}
-                          </span>
-                        </div>
-                        {(entry.attachments ?? 0) > 0 && (
-                          <div className="flex items-center gap-1 text-[11px] sm:text-xs text-muted-foreground mt-1.5 sm:mt-2">
-                            <BookMarked className="h-3 w-3" />
-                            {entry.attachments} attachment
-                            {(entry.attachments ?? 0) > 1 ? "s" : ""}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between text-[11px] sm:text-xs text-muted-foreground">
-                        <span>By {entry.createdBy}</span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs h-7"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // View diary details
-                          }}
+                    <div className="p-4 sm:p-5 flex flex-col flex-1 min-w-0">
+                      {/* Top: subject pill (primary identifier) + date (secondary, corner) */}
+                      <div className="flex items-baseline justify-between gap-2 mb-3">
+                        <Badge
+                          className={cn(
+                            "rounded-full text-[11px] font-medium px-2.5 py-0.5 border-0 shrink-0",
+                            color.bg,
+                            color.text,
+                          )}
                         >
-                          View Details
-                          <ArrowUpRight className="h-3 w-3 ml-1" />
-                        </Button>
+                          {entry.subjectName}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
+                          {entry.diaryDate}
+                        </span>
+                      </div>
+
+                      {/* Title */}
+                      <h3 className="text-sm font-semibold mb-1.5 break-words">
+                        {entry.title}
+                      </h3>
+
+                      {/* Content — given the most room, since this is what readers scan for */}
+                      <p className="text-[13px] text-muted-foreground leading-relaxed mb-3.5 flex-1 break-words">
+                        {entry.content}
+                      </p>
+
+                      {/* Footer: teacher name (de-emphasized, no avatar) + direct actions */}
+                      <div className="flex items-center justify-between border-t pt-2.5 gap-2">
+                        <span className="text-xs text-muted-foreground truncate">
+                          {entry.teacherName}
+                        </span>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                            aria-label={`Edit ${entry.title}`}
+                            onClick={() => {
+                              setEditDiaryDialog(entry);
+                              setEditDiaryForm({
+                                diaryDate: entry.diaryDate,
+                                subjectId: String(entry.subjectId),
+                                teacherId: String(entry.teacherId),
+                                title: entry.title,
+                                content: entry.content,
+                              });
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            aria-label={`Delete ${entry.title}`}
+                            onClick={() =>
+                              setDeleteDialog({
+                                type: "diary",
+                                id: entry.diaryId,
+                                name: entry.title,
+                              })
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1577,7 +1641,7 @@ export default function SectionDetailsPage() {
 
       {/* Add Student Dialog */}
       <Dialog open={addStudentDialog} onOpenChange={setAddStudentDialog}>
-        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto no-scrollbar rounded-2xl">
           {/* Header */}
           <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
             <DialogHeader className="space-y-1.5">
@@ -1830,7 +1894,6 @@ export default function SectionDetailsPage() {
             >
               {createStudentMutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
                   Adding Student...
                 </>
               ) : (
@@ -1849,7 +1912,7 @@ export default function SectionDetailsPage() {
         open={!!editStudentDialog}
         onOpenChange={(open) => !open && setEditStudentDialog(null)}
       >
-        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto no-scrollbar rounded-2xl">
           {/* Header */}
           <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
             <DialogHeader className="space-y-1.5">
@@ -1918,103 +1981,7 @@ export default function SectionDetailsPage() {
                 />
               </div>
             </div>
-            {/* Primary Parent Section */}
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-                  <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-600" />
-                </div>
-                <h4 className="text-sm font-semibold">
-                  Primary Parent / Guardian
-                </h4>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Name</label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Parent name"
-                      value={editStudentForm.parentName1}
-                      onChange={(e) =>
-                        setEditStudentForm((prev) => ({
-                          ...prev,
-                          parentName1: e.target.value,
-                        }))
-                      }
-                      className="h-10 sm:h-11 pl-10"
-                    />
-                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Phone</label>
-                  <div className="relative">
-                    <Input
-                      type="tel"
-                      placeholder="Phone number"
-                      value={editStudentForm.parentPhoneNumber1}
-                      onChange={(e) =>
-                        setEditStudentForm((prev) => ({
-                          ...prev,
-                          parentPhoneNumber1: e.target.value,
-                        }))
-                      }
-                      className="h-10 sm:h-11 pl-10"
-                    />
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* Secondary Parent Section */}
-            <div className="space-y-3 sm:space-y-4">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600" />
-                </div>
-                <h4 className="text-sm font-semibold">
-                  Secondary Parent / Guardian
-                </h4>
-                <Badge className="text-[10px]">Optional</Badge>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Name</label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Parent name"
-                      value={editStudentForm.parentName2}
-                      onChange={(e) =>
-                        setEditStudentForm((prev) => ({
-                          ...prev,
-                          parentName2: e.target.value,
-                        }))
-                      }
-                      className="h-10 sm:h-11 pl-10"
-                    />
-                    <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Phone</label>
-                  <div className="relative">
-                    <Input
-                      type="tel"
-                      placeholder="Phone number"
-                      value={editStudentForm.parentPhoneNumber2}
-                      onChange={(e) =>
-                        setEditStudentForm((prev) => ({
-                          ...prev,
-                          parentPhoneNumber2: e.target.value,
-                        }))
-                      }
-                      className="h-10 sm:h-11 pl-10"
-                    />
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  </div>
-                </div>
-              </div>
-            </div>
+
             {/* Current Student Info */}
             {editStudentDialog && (
               <div className="rounded-lg border bg-muted/30 p-3 sm:p-4 space-y-2 sm:space-y-3">
@@ -2067,7 +2034,7 @@ export default function SectionDetailsPage() {
             >
               {updateStudentMutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  
                   Saving Changes...
                 </>
               ) : (
@@ -2083,7 +2050,7 @@ export default function SectionDetailsPage() {
 
       {/* Add Assignment Dialog */}
       <Dialog open={addAssignmentDialog} onOpenChange={setAddAssignmentDialog}>
-        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto no-scrollbar rounded-2xl">
           {/* Header */}
           <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
             <DialogHeader className="space-y-1.5">
@@ -2120,7 +2087,6 @@ export default function SectionDetailsPage() {
                 <SelectContent>
                   {teachersLoading ? (
                     <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       Loading teachers...
                     </div>
                   ) : teachers.length === 0 ? (
@@ -2172,7 +2138,6 @@ export default function SectionDetailsPage() {
                 <SelectContent>
                   {subjectsLoading ? (
                     <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       Loading subjects...
                     </div>
                   ) : subjects.length === 0 ? (
@@ -2342,7 +2307,7 @@ export default function SectionDetailsPage() {
             >
               {createAssignmentMutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  
                   Assigning...
                 </>
               ) : (
@@ -2361,7 +2326,7 @@ export default function SectionDetailsPage() {
         open={!!editAssignmentDialog}
         onOpenChange={(open) => !open && setEditAssignmentDialog(null)}
       >
-        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto no-scrollbar rounded-2xl">
           {/* Header */}
           <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
             <DialogHeader className="space-y-1.5">
@@ -2398,7 +2363,6 @@ export default function SectionDetailsPage() {
                 <SelectContent>
                   {teachersLoading ? (
                     <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       Loading teachers...
                     </div>
                   ) : teachers.length === 0 ? (
@@ -2447,7 +2411,6 @@ export default function SectionDetailsPage() {
                 <SelectContent>
                   {subjectsLoading ? (
                     <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
                       Loading subjects...
                     </div>
                   ) : subjects.length === 0 ? (
@@ -2605,7 +2568,7 @@ export default function SectionDetailsPage() {
             >
               {updateAssignmentMutation.isPending ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  
                   Saving...
                 </>
               ) : (
@@ -2891,6 +2854,484 @@ export default function SectionDetailsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Add Diary Dialog */}
+      <Dialog
+        open={addDiaryDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setAddDiaryDialog(false);
+            setAddDiaryForm({
+              diaryDate: "",
+              subjectId: "",
+              teacherId: "",
+              title: "",
+              content: "",
+            });
+          } else {
+            setAddDiaryDialog(true);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto no-scrollbar rounded-2xl">
+          <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
+            <DialogHeader className="space-y-1.5">
+              <DialogTitle className="text-lg sm:text-xl font-semibold tracking-tight">
+                Add Diary Entry
+              </DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm leading-relaxed">
+                Create a new daily diary entry for Grade {section.grade} -
+                Section {section.sectionName}.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="border-t" />
+          <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
+            {/* Date */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Date <span className="text-destructive">*</span>
+              </label>
+              <MiniCalendar
+                value={
+                  addDiaryForm.diaryDate
+                    ? convertADToBS(new Date(addDiaryForm.diaryDate))
+                    : undefined
+                }
+                onChange={(isoString) =>
+                  setAddDiaryForm((f) => ({ ...f, diaryDate: isoString }))
+                }
+                placeholder="Select diary date"
+              />
+            </div>
+            {/* Title */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Title <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="Enter diary title"
+                value={addDiaryForm.title}
+                onChange={(e) =>
+                  setAddDiaryForm((f) => ({ ...f, title: e.target.value }))
+                }
+                className="h-10 sm:h-11"
+                maxLength={255}
+              />
+            </div>
+            {/* Content */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Content <span className="text-destructive">*</span>
+              </label>
+              <textarea
+                placeholder="Enter diary content"
+                value={addDiaryForm.content}
+                onChange={(e) =>
+                  setAddDiaryForm((f) => ({ ...f, content: e.target.value }))
+                }
+                className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[100px]"
+              />
+            </div>
+            {/* Subject */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Subject <span className="text-destructive">*</span>
+              </label>
+              <Select
+                value={addDiaryForm.subjectId}
+                onValueChange={(v) =>
+                  setAddDiaryForm((f) => ({ ...f, subjectId: v }))
+                }
+              >
+                <SelectTrigger className="h-10 sm:h-11">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Select a subject" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {subjectsLoading ? (
+                    <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                      Loading subjects...
+                    </div>
+                  ) : subjects.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-sm text-muted-foreground gap-2">
+                      <AlertCircle className="h-5 w-5" />
+                      <span>No subjects available</span>
+                    </div>
+                  ) : (
+                    subjects.map((subject) => (
+                      <SelectItem
+                        key={subject.subjectId}
+                        value={String(subject.subjectId)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-md bg-blue-100 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-blue-600">
+                              {subject.subjectName.charAt(0)}
+                            </span>
+                          </div>
+                          {subject.subjectName}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Teacher */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Teacher <span className="text-destructive">*</span>
+              </label>
+              <Select
+                value={addDiaryForm.teacherId}
+                onValueChange={(v) =>
+                  setAddDiaryForm((f) => ({ ...f, teacherId: v }))
+                }
+              >
+                <SelectTrigger className="h-10 sm:h-11">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Select a teacher" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {teachersLoading ? (
+                    <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                      Loading teachers...
+                    </div>
+                  ) : teachers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-sm text-muted-foreground gap-2">
+                      <AlertCircle className="h-5 w-5" />
+                      <span>No teachers available</span>
+                    </div>
+                  ) : (
+                    teachers.map((teacher) => (
+                      <SelectItem
+                        key={teacher.teacherId}
+                        value={String(teacher.teacherId)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-violet-600">
+                              {teacher.teacherName.charAt(0)}
+                            </span>
+                          </div>
+                          {teacher.teacherName}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="border-t" />
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setAddDiaryDialog(false);
+                setAddDiaryForm({
+                  diaryDate: "",
+                  subjectId: "",
+                  teacherId: "",
+                  title: "",
+                  content: "",
+                });
+              }}
+              className="text-sm font-medium w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                createDiaryMutation.isPending ||
+                !addDiaryForm.diaryDate ||
+                !addDiaryForm.title ||
+                !addDiaryForm.content ||
+                !addDiaryForm.subjectId ||
+                !addDiaryForm.teacherId
+              }
+              onClick={() => {
+                if (!addDiaryForm.diaryDate) {
+                  toast({ title: "Date is required", variant: "destructive" });
+                  return;
+                }
+                if (!addDiaryForm.title.trim()) {
+                  toast({ title: "Title is required", variant: "destructive" });
+                  return;
+                }
+                if (!addDiaryForm.content.trim()) {
+                  toast({
+                    title: "Content is required",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (!addDiaryForm.subjectId) {
+                  toast({
+                    title: "Subject is required",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                if (!addDiaryForm.teacherId) {
+                  toast({
+                    title: "Teacher is required",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                createDiaryMutation.mutate({
+                  diaryDate: addDiaryForm.diaryDate,
+                  title: addDiaryForm.title,
+                  content: addDiaryForm.content,
+                  subjectId: Number(addDiaryForm.subjectId),
+                  teacherId: Number(addDiaryForm.teacherId),
+                  sectionId: sectionId,
+                });
+              }}
+              className="gap-2 text-sm font-medium w-full sm:w-auto"
+            >
+              {createDiaryMutation.isPending ? (
+                <>
+                  
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Add Entry
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Diary Dialog */}
+      <Dialog
+        open={!!editDiaryDialog}
+        onOpenChange={(open) => !open && setEditDiaryDialog(null)}
+      >
+        <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto max-h-[90vh] overflow-y-auto no-scrollbar rounded-2xl">
+          <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
+            <DialogHeader className="space-y-1.5">
+              <DialogTitle className="text-lg sm:text-xl font-semibold tracking-tight">
+                Edit Diary Entry
+              </DialogTitle>
+              <DialogDescription className="text-xs sm:text-sm leading-relaxed">
+                Update the daily diary entry for Grade {section.grade} - Section{" "}
+                {section.sectionName}.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="border-t" />
+          <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
+            {/* Date */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Date
+              </label>
+              <MiniCalendar
+                value={
+                  editDiaryForm.diaryDate
+                    ? convertADToBS(new Date(editDiaryForm.diaryDate))
+                    : undefined
+                }
+                onChange={(isoString) =>
+                  setEditDiaryForm((f) => ({ ...f, diaryDate: isoString }))
+                }
+                placeholder="Select diary date"
+              />
+            </div>
+            {/* Subject */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Subject
+              </label>
+              <Select
+                value={editDiaryForm.subjectId}
+                onValueChange={(v) =>
+                  setEditDiaryForm((f) => ({ ...f, subjectId: v }))
+                }
+              >
+                <SelectTrigger className="h-10 sm:h-11">
+                  <div className="flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Select a subject" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {subjectsLoading ? (
+                    <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                      Loading subjects...
+                    </div>
+                  ) : subjects.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-sm text-muted-foreground gap-2">
+                      <AlertCircle className="h-5 w-5" />
+                      <span>No subjects available</span>
+                    </div>
+                  ) : (
+                    subjects.map((subject) => (
+                      <SelectItem
+                        key={subject.subjectId}
+                        value={String(subject.subjectId)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-md bg-blue-100 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-blue-600">
+                              {subject.subjectName.charAt(0)}
+                            </span>
+                          </div>
+                          {subject.subjectName}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Teacher */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Teacher
+              </label>
+              <Select
+                value={editDiaryForm.teacherId}
+                onValueChange={(v) =>
+                  setEditDiaryForm((f) => ({ ...f, teacherId: v }))
+                }
+              >
+                <SelectTrigger className="h-10 sm:h-11">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue placeholder="Select a teacher" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {teachersLoading ? (
+                    <div className="flex items-center justify-center py-6 text-sm text-muted-foreground">
+                      Loading teachers...
+                    </div>
+                  ) : teachers.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-6 text-sm text-muted-foreground gap-2">
+                      <AlertCircle className="h-5 w-5" />
+                      <span>No teachers available</span>
+                    </div>
+                  ) : (
+                    teachers.map((teacher) => (
+                      <SelectItem
+                        key={teacher.teacherId}
+                        value={String(teacher.teacherId)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-violet-100 flex items-center justify-center">
+                            <span className="text-[10px] font-bold text-violet-600">
+                              {teacher.teacherName.charAt(0)}
+                            </span>
+                          </div>
+                          {teacher.teacherName}
+                        </div>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Title */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Title <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="Enter diary title"
+                value={editDiaryForm.title}
+                onChange={(e) =>
+                  setEditDiaryForm((f) => ({ ...f, title: e.target.value }))
+                }
+                className="h-10 sm:h-11"
+                maxLength={255}
+              />
+            </div>
+            {/* Content */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-1 text-sm font-medium">
+                Content <span className="text-destructive">*</span>
+              </label>
+              <textarea
+                placeholder="Enter diary content"
+                value={editDiaryForm.content}
+                onChange={(e) =>
+                  setEditDiaryForm((f) => ({ ...f, content: e.target.value }))
+                }
+                className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[100px]"
+              />
+            </div>
+          </div>
+          <div className="border-t" />
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 sm:gap-0">
+            <Button
+              variant="ghost"
+              onClick={() => setEditDiaryDialog(null)}
+              className="text-sm font-medium w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                updateDiaryMutation.isPending ||
+                !editDiaryForm.title.trim() ||
+                !editDiaryForm.content.trim()
+              }
+              onClick={() => {
+                if (!editDiaryDialog) return;
+                if (!editDiaryForm.title.trim()) {
+                  toast({ title: "Title is required", variant: "destructive" });
+                  return;
+                }
+                if (!editDiaryForm.content.trim()) {
+                  toast({
+                    title: "Content is required",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                updateDiaryMutation.mutate({
+                  diaryId: editDiaryDialog.diaryId,
+                  data: {
+                    diaryDate: editDiaryForm.diaryDate || undefined,
+                    subjectId: editDiaryForm.subjectId
+                      ? Number(editDiaryForm.subjectId)
+                      : undefined,
+                    teacherId: editDiaryForm.teacherId
+                      ? Number(editDiaryForm.teacherId)
+                      : undefined,
+                    title: editDiaryForm.title,
+                    content: editDiaryForm.content,
+                  },
+                });
+              }}
+              className="gap-2 text-sm font-medium w-full sm:w-auto"
+            >
+              {updateDiaryMutation.isPending ? (
+                <>
+                  
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Pencil className="h-4 w-4" />
+                  Save Changes
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog
         open={!!deleteDialog}
@@ -2921,7 +3362,8 @@ export default function SectionDetailsPage() {
               disabled={
                 deleteStudentMutation.isPending ||
                 deleteAssignmentMutation.isPending ||
-                deleteAllStudentsMutation.isPending
+                deleteAllStudentsMutation.isPending ||
+                deleteDiaryMutation.isPending
               }
               onClick={() => {
                 if (deleteDialog?.type === "All Students") {
@@ -2937,6 +3379,10 @@ export default function SectionDetailsPage() {
                   deleteDialog?.type?.startsWith("Teacher")
                 ) {
                   deleteAssignmentMutation.mutate(deleteDialog.id);
+                  return;
+                }
+                if (deleteDialog?.type === "diary") {
+                  deleteDiaryMutation.mutate(deleteDialog.id);
                   return;
                 }
                 setDeleteDialog(null);

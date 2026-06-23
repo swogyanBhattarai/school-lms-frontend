@@ -167,10 +167,6 @@ export interface StudentCreate {
 export interface StudentUpdate {
   studentName: string;
   dateOfBirth: string;
-  parentName1: string;
-  parentPhoneNumber1: string;
-  parentName2?: string;
-  parentPhoneNumber2?: string;
 }
 
 export interface StudentClassResponse {
@@ -179,6 +175,7 @@ export interface StudentClassResponse {
 }
 
 export interface StudentParentResponse {
+  parentId: number;
   parentName: string;
   parentNumber: string;
 }
@@ -303,6 +300,11 @@ export interface ParentCreate {
   parentPhoneNumber: string;
 }
 
+export interface ParentUpdate {
+  parentName: string;
+  parentPhoneNumber: string;
+}
+
 export interface ParentResponse {
   parentId: number;
   parentName: string;
@@ -423,15 +425,38 @@ export type AttendanceModel = {
 export interface DiaryCreate {
   diaryDate: string;
   subjectId: number;
-  createdById: number;
+  teacherId: number;
   sectionId: number;
   title: string;
   content: string;
 }
 
+export interface DiaryResponse {
+  diaryId: number;
+  diaryDate: string;
+  subjectId: number;
+  subjectName: string;
+  title: string;
+  content: string;
+  teacherId: number;
+  teacherName: string;
+  sectionId: number;
+  sectionName: string;
+  schoolClassId: number;
+  grade: string;
+}
+
 export interface DiaryUpdate {
   title: string;
   content: string;
+}
+
+export interface DiaryUpdateAdmin {
+  title: string;
+  content: string;
+  diaryDate?: string;
+  subjectId?: number | null;
+  teacherId?: number | null;
 }
 
 // --- Diary Model ---
@@ -472,7 +497,7 @@ export interface CurrentUserInfoResponse {
 
 // --- StudentFee Enums ---
 export type FeeTypes = 'ADMISSION_FEE' | 'MONTHLY_FEE' | 'ANNUAL_FEE' | 'EXTRACURRICULAR_FEE' | 'EXAMINATION_FEE';
-export type FeeStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
+export type FeeStatus = 'UNPAID' | 'PARTIAL' | 'PAID' | 'OVERDUE';
 export type PaymentType = 'CASH' | 'CHEQUE' | 'ESEWA' | 'KHALTI' | 'BANK_TRANSFER';
 
 // --- StudentFee DTOs ---
@@ -480,6 +505,7 @@ export interface StudentFeeCreate {
   originalAmount: number;
   discountPercentage: number;
   feeType: FeeTypes;
+  dueDate: string;
 }
 
 export interface FeePaymentCreate {
@@ -487,29 +513,29 @@ export interface FeePaymentCreate {
   paidBy: string;
   phoneNumber: string;
   paymentType: PaymentType;
+  paymentDate: string;
 }
 
-// --- StudentFee and FeePayment Models ---
-export type FeePaymentModel = {
+export interface FeePaymentResponse {
   feePaymentId: number;
   amountPaid: number;
   paidBy: string;
   phoneNumber: string;
   paymentType: PaymentType;
-  studentFee?: StudentFeeModel;
-  school?: SchoolModel;
-};
+  paymentDate: string;
+}
 
-export type StudentFeeModel = {
+export interface StudentFeeResponse {
   studentFeeId: number;
   feeType: FeeTypes;
   feeStatus: FeeStatus;
   originalAmount: number;
   discountPercentage: number;
+  dueDate: string;
   netFee: number;
-  feePayments?: FeePaymentModel[];
-  student?: StudentModel;
-  academicYear?: AcademicYearModel;
-  school?: SchoolModel;
-};
+  feePayments: FeePaymentResponse[];
+  academicYear: string;
+}
+
+
 

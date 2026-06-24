@@ -54,13 +54,18 @@ export function middleware(request: NextRequest) {
 
   const token = request.cookies.get(ACCESS_COOKIE)?.value;
 
+  console.log("TOKEN EXISTS", !!token);
+
   if (!token || isTokenExpired(token)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  const payload = decodeJwtPayload(token);
+  const payload = token ? decodeJwtPayload(token) : null;
+
+  console.log("PAYLOAD", payload);
+  
   const roles = payload?.roles ?? [];
 
   const isAdmin = roles.includes("ROLE_ADMIN") || roles.includes("ADMIN");
@@ -83,6 +88,13 @@ export function middleware(request: NextRequest) {
   // ── Admin route guard ──
   // All /admin/* routes require ROLE_ADMIN
   if (pathname.startsWith("/admin") && !isAdmin) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
+  // All /teacher/* routes require ROLE_TEACHER or ROLE_ADMIN
+  if (pathname.startsWith("/teacher") && !isTeacher && !isAdmin) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);

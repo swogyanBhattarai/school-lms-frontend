@@ -291,14 +291,13 @@ export default function StudentsPageClient() {
   const totalPages = Math.max(1, Math.ceil(totalStudents / pageSize));
   const students = studentsData?.content || [];
 
-  
-const viewState: ViewState = studentsLoading
-  ? "loading"
-  : studentsError
-  ? "error"
-  : students.length === 0
-  ? "empty"
-  : "content";
+  const viewState: ViewState = studentsLoading
+    ? "loading"
+    : studentsError
+      ? "error"
+      : students.length === 0
+        ? "empty"
+        : "content";
 
   // Active filters count
   const activeFiltersCount = [
@@ -885,412 +884,414 @@ const viewState: ViewState = studentsLoading
         </div>
       </div>
 
-{/* Students Display with smooth transitions */}
-<div className="relative">
-  {/* Loading State */}
-  <div
-    className={cn(
-      "transition-all duration-300 ease-in-out",
-      viewState === "loading"
-        ? "opacity-100 visible"
-        : "opacity-0 invisible absolute inset-0"
-    )}
-  >
-    <StudentListSkeleton viewMode={viewMode} />
-  </div>
-
-  {/* Error State */}
-  <div
-    className={cn(
-      "transition-all duration-300 ease-in-out",
-      viewState === "error"
-        ? "opacity-100 visible"
-        : "opacity-0 invisible absolute inset-0"
-    )}
-  >
-    <div className="flex items-center justify-center py-16 sm:py-20">
-      <div className="flex flex-col items-center gap-3 text-center">
-        <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
-          <Plus className="h-5 w-5 text-destructive rotate-45" />
+      {/* Students Display with smooth transitions */}
+      <div className="relative">
+        {/* Loading State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "loading"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
+          )}
+        >
+          <StudentListSkeleton viewMode={viewMode} />
         </div>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          Error loading students
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void refetchStudents()}
+
+        {/* Error State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "error"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
+          )}
         >
-          Retry
-        </Button>
-      </div>
-    </div>
-  </div>
-
-  {/* Empty State */}
-  <div
-    className={cn(
-      "transition-all duration-300 ease-in-out",
-      viewState === "empty"
-        ? "opacity-100 visible"
-        : "opacity-0 invisible absolute inset-0"
-    )}
-  >
-    <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
-      <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
-      <p className="text-sm text-muted-foreground">No students found</p>
-      {activeFiltersCount > 0 && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={handleClearFilters}
-        >
-          Clear filters
-        </Button>
-      )}
-    </div>
-  </div>
-
-  {/* Content State */}
-  <div
-    className={cn(
-      "transition-all duration-300 ease-in-out",
-      viewState === "content"
-        ? "opacity-100 visible"
-        : "opacity-0 invisible absolute inset-0"
-    )}
-  >
-    {viewMode === "grid" ? (
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {students.map((student, index) => {
-          const initials = student.studentName
-            ?.split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2);
-
-          const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
-          const hasClassAndSection =
-            Boolean(student.studentClass?.grade?.trim()) &&
-            Boolean(student.studentClass?.sectionName?.trim());
-          const statusText = hasClassAndSection ? "Active" : "Inactive";
-          const statusBadgeClasses = hasClassAndSection
-            ? "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm"
-            : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm";
-
-          return (
-            <div
-              key={student.studentId}
-              className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer group"
-              onClick={() =>
-                router.push(`/admin/students/${student.studentId}`)
-              }
-            >
-              <div className="p-4 sm:p-5">
-                {/* Top Section */}
-                <div className="flex items-start gap-3 mb-3 sm:mb-4">
-                  <div
-                    className={cn(
-                      "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-bold flex-shrink-0",
-                      avatarColor.bg,
-                      avatarColor.text,
-                    )}
-                  >
-                    {initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-semibold truncate">
-                      {student.studentName}
-                    </h3>
-                    <div
-                      className={cn(
-                        "mt-1.5 sm:mt-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
-                        statusBadgeClasses,
-                      )}
-                    >
-                      {hasClassAndSection ? (
-                        <UserCheck className="h-3 w-3 mr-1" />
-                      ) : (
-                        <UserX className="h-3 w-3 mr-1" />
-                      )}
-                      {statusText}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Divider */}
-                <div className="border-t mb-3 sm:mb-4" />
-
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center bg-muted/30 rounded-lg p-2.5 sm:p-3">
-                  <div>
-                    <p className="text-xs font-bold truncate">
-                      {formatStudentGrade(student)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Class
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold truncate">
-                      {formatStudentSection(student)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Section
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold">
-                      {formatStudentAttendance(student)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Attendance
-                    </p>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2 mt-3 sm:mt-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-xs h-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(`/admin/students/${student.studentId}`);
-                    }}
-                  >
-                    <Eye className="h-3.5 w-3.5 mr-1.5" /> View
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeleteDialog(student);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+          <div className="flex items-center justify-center py-16 sm:py-20">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <Plus className="h-5 w-5 text-destructive rotate-45" />
               </div>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                Error loading students
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void refetchStudents()}
+              >
+                Retry
+              </Button>
             </div>
-          );
-        })}
-      </div>
-    ) : (
-      /* List View */
-      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/30">
-                <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Student
-                </th>
-                <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Class & Section
-                </th>
-                <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Attendance
-                </th>
-                <th className="px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Status
-                </th>
-                <th className="px-3 sm:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground w-16"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
+          </div>
+        </div>
+
+        {/* Empty State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "empty"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
+          )}
+        >
+          <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
+            <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No students found</p>
+            {activeFiltersCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                onClick={handleClearFilters}
+              >
+                Clear filters
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Content State */}
+        <div
+          className={cn(
+            "transition-all duration-300 ease-in-out",
+            viewState === "content"
+              ? "opacity-100 visible"
+              : "opacity-0 invisible absolute inset-0",
+          )}
+        >
+          {viewMode === "grid" ? (
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {students.map((student, index) => {
-                const avatarColor =
-                  AVATAR_COLORS[index % AVATAR_COLORS.length];
+                const initials = student.studentName
+                  ?.split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2);
+
+                const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
                 const hasClassAndSection =
                   Boolean(student.studentClass?.grade?.trim()) &&
                   Boolean(student.studentClass?.sectionName?.trim());
                 const statusText = hasClassAndSection ? "Active" : "Inactive";
+                const statusBadgeClasses = hasClassAndSection
+                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm"
+                  : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm";
 
                 return (
-                  <tr
+                  <div
                     key={student.studentId}
-                    className="hover:bg-muted/20 transition-colors cursor-pointer"
+                    className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer group"
                     onClick={() =>
                       router.push(`/admin/students/${student.studentId}`)
                     }
                   >
-                    <td className="px-3 sm:px-5 py-3">
-                      <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="p-4 sm:p-5">
+                      {/* Top Section */}
+                      <div className="flex items-start gap-3 mb-3 sm:mb-4">
                         <div
                           className={cn(
-                            "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0",
+                            "w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center text-sm sm:text-base font-bold flex-shrink-0",
                             avatarColor.bg,
                             avatarColor.text,
                           )}
                         >
-                          {student.studentName.charAt(0).toUpperCase()}
+                          {initials}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-semibold truncate">
+                            {student.studentName}
+                          </h3>
+                          <div
+                            className={cn(
+                              "mt-1.5 sm:mt-2 inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                              statusBadgeClasses,
+                            )}
+                          >
+                            {hasClassAndSection ? (
+                              <UserCheck className="h-3 w-3 mr-1" />
+                            ) : (
+                              <UserX className="h-3 w-3 mr-1" />
+                            )}
+                            {statusText}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Divider */}
+                      <div className="border-t mb-3 sm:mb-4" />
+
+                      {/* Stats */}
+                      <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center bg-muted/30 rounded-lg p-2.5 sm:p-3">
+                        <div>
+                          <p className="text-xs font-bold truncate">
+                            {formatStudentGrade(student)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Class
+                          </p>
                         </div>
                         <div>
-                          <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">
-                            {student.studentName}
+                          <p className="text-xs font-bold truncate">
+                            {formatStudentSection(student)}
                           </p>
-                          <p className="sm:hidden text-[11px] text-muted-foreground">
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Section
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold">
+                            {formatStudentAttendance(student)}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            Attendance
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex gap-2 mt-3 sm:mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 text-xs h-8"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/admin/students/${student.studentId}`);
+                          }}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-1.5" /> View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteDialog(student);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* List View */
+            <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Student
+                      </th>
+                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Class & Section
+                      </th>
+                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Attendance
+                      </th>
+                      <th className="px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Status
+                      </th>
+                      <th className="px-3 sm:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground w-16"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {students.map((student, index) => {
+                      const avatarColor =
+                        AVATAR_COLORS[index % AVATAR_COLORS.length];
+                      const hasClassAndSection =
+                        Boolean(student.studentClass?.grade?.trim()) &&
+                        Boolean(student.studentClass?.sectionName?.trim());
+                      const statusText = hasClassAndSection
+                        ? "Active"
+                        : "Inactive";
+
+                      return (
+                        <tr
+                          key={student.studentId}
+                          className="hover:bg-muted/20 transition-colors cursor-pointer"
+                          onClick={() =>
+                            router.push(`/admin/students/${student.studentId}`)
+                          }
+                        >
+                          <td className="px-3 sm:px-5 py-3">
+                            <div className="flex items-center gap-2 sm:gap-3">
+                              <div
+                                className={cn(
+                                  "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0",
+                                  avatarColor.bg,
+                                  avatarColor.text,
+                                )}
+                              >
+                                {student.studentName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">
+                                  {student.studentName}
+                                </p>
+                                <p className="sm:hidden text-[11px] text-muted-foreground">
+                                  {formatStudentGrade(student)}{" "}
+                                  {formatStudentSection(student) !== "—"
+                                    ? `• ${formatStudentSection(student)}`
+                                    : ""}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
                             {formatStudentGrade(student)}{" "}
                             {formatStudentSection(student) !== "—"
                               ? `• ${formatStudentSection(student)}`
                               : ""}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
-                      {formatStudentGrade(student)}{" "}
-                      {formatStudentSection(student) !== "—"
-                        ? `• ${formatStudentSection(student)}`
-                        : ""}
-                    </td>
-                    <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
-                      {formatStudentAttendance(student)}
-                    </td>
-                    <td className="px-3 sm:px-5 py-3 text-center">
-                      <Badge
-                        className={cn(
-                          "text-[10px] px-2 py-0 h-5",
-                          hasClassAndSection
-                            ? "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm"
-                            : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm",
-                        )}
-                      >
-                        {hasClassAndSection ? (
-                          <UserCheck className="h-3 w-3 mr-1" />
-                        ) : (
-                          <UserX className="h-3 w-3 mr-1" />
-                        )}
-                        {statusText}
-                      </Badge>
-                    </td>
-                    <td className="px-3 sm:px-5 py-3 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreHorizontal className="h-3.5 w-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(
-                                `/admin/students/${student.studentId}`,
-                              );
-                            }}
-                          >
-                            <Eye className="mr-2 h-4 w-4" /> View
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteDialog(student);
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          </td>
+                          <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
+                            {formatStudentAttendance(student)}
+                          </td>
+                          <td className="px-3 sm:px-5 py-3 text-center">
+                            <Badge
+                              className={cn(
+                                "text-[10px] px-2 py-0 h-5",
+                                hasClassAndSection
+                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm"
+                                  : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm",
+                              )}
+                            >
+                              {hasClassAndSection ? (
+                                <UserCheck className="h-3 w-3 mr-1" />
+                              ) : (
+                                <UserX className="h-3 w-3 mr-1" />
+                              )}
+                              {statusText}
+                            </Badge>
+                          </td>
+                          <td className="px-3 sm:px-5 py-3 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    router.push(
+                                      `/admin/students/${student.studentId}`,
+                                    );
+                                  }}
+                                >
+                                  <Eye className="mr-2 h-4 w-4" /> View
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteDialog(student);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    )}
-  </div>
-</div>
 
-{/* Pagination - only show when there's content */}
-{viewState === "content" && students.length > 0 && (
-  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 py-3 border rounded-xl bg-card shadow-sm">
-    <div className="text-xs text-muted-foreground order-2 sm:order-1">
-      {(currentPage - 1) * pageSize + 1}–
-      {Math.min(currentPage * pageSize, totalStudents)} of {totalStudents}
-    </div>
-    <div className="flex items-center gap-1 order-1 sm:order-2 flex-wrap justify-center">
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 px-2 text-xs"
-        disabled={pageNum <= 1}
-        onClick={() => setPageNum((p) => p - 1)}
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </Button>
-      {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-        let pageNumber;
-        if (totalPages <= 5) {
-          pageNumber = i + 1;
-        } else if (currentPage <= 3) {
-          pageNumber = i + 1;
-        } else if (currentPage >= totalPages - 2) {
-          pageNumber = totalPages - 4 + i;
-        } else {
-          pageNumber = currentPage - 2 + i;
-        }
-        return (
-          <Button
-            key={pageNumber}
-            variant={pageNumber === currentPage ? "default" : "outline"}
-            size="sm"
-            className={`h-8 w-8 p-0 text-xs ${
-              pageNumber === currentPage
-                ? "bg-[#185FA5] hover:bg-[#0C447C]"
-                : ""
-            }`}
-            onClick={() => setPageNum(pageNumber)}
-          >
-            {pageNumber}
-          </Button>
-        );
-      })}
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-8 px-2 text-xs"
-        disabled={pageNum >= totalPages}
-        onClick={() => setPageNum((p) => p + 1)}
-      >
-        <ChevronRight className="h-4 w-4" />
-      </Button>
-      <Select
-        value={String(pageSize)}
-        onValueChange={(v) => {
-          setPageSize(Number(v));
-          setPageNum(1);
-        }}
-      >
-        <SelectTrigger className="h-8 w-[60px] sm:w-[65px] text-xs ml-1 sm:ml-2">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {PAGE_SIZE_OPTIONS.map((size) => (
-            <SelectItem key={size} value={String(size)}>
-              {size}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  </div>
-)}
+      {/* Pagination - only show when there's content */}
+      {viewState === "content" && students.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 py-3 border rounded-xl bg-card shadow-sm">
+          <div className="text-xs text-muted-foreground order-2 sm:order-1">
+            {(currentPage - 1) * pageSize + 1}–
+            {Math.min(currentPage * pageSize, totalStudents)} of {totalStudents}
+          </div>
+          <div className="flex items-center gap-1 order-1 sm:order-2 flex-wrap justify-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              disabled={pageNum <= 1}
+              onClick={() => setPageNum((p) => p - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+              let pageNumber;
+              if (totalPages <= 5) {
+                pageNumber = i + 1;
+              } else if (currentPage <= 3) {
+                pageNumber = i + 1;
+              } else if (currentPage >= totalPages - 2) {
+                pageNumber = totalPages - 4 + i;
+              } else {
+                pageNumber = currentPage - 2 + i;
+              }
+              return (
+                <Button
+                  key={pageNumber}
+                  variant={pageNumber === currentPage ? "default" : "outline"}
+                  size="sm"
+                  className={`h-8 w-8 p-0 text-xs ${
+                    pageNumber === currentPage
+                      ? "bg-[#185FA5] hover:bg-[#0C447C]"
+                      : ""
+                  }`}
+                  onClick={() => setPageNum(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              );
+            })}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              disabled={pageNum >= totalPages}
+              onClick={() => setPageNum((p) => p + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPageNum(1);
+              }}
+            >
+              <SelectTrigger className="h-8 w-[60px] sm:w-[65px] text-xs ml-1 sm:ml-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
 
       {/* Add Student Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>

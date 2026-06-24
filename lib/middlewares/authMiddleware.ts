@@ -36,6 +36,8 @@ const isTokenExpired = (token: string) => {
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  console.log("PATH:", request.nextUrl.pathname);
+
   const publicPaths = ["/login", "/login/", "/not-found", "/not-found/"];
 
   // Next.js internals — always skip
@@ -65,7 +67,7 @@ export function middleware(request: NextRequest) {
   const payload = token ? decodeJwtPayload(token) : null;
 
   console.log("PAYLOAD", payload);
-  
+
   const roles = payload?.roles ?? [];
 
   const isAdmin = roles.includes("ROLE_ADMIN") || roles.includes("ADMIN");

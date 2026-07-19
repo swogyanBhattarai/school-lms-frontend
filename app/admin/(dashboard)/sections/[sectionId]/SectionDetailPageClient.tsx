@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
   Users,
   BookOpen,
@@ -50,16 +50,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/app/_components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/app/_components/ui/alert-dialog";
+import { DeleteConfirmationDialog } from "@/app/_components/DeleteConfirmationDialog";
 import {
   Select,
   SelectContent,
@@ -123,7 +114,6 @@ import {
   updateDiaryAdmin,
   deleteDiary as deleteDiaryApi,
 } from "@/lib/api/diary";
-import { SectionDetailSkeleton } from "@/app/_components/skeletons/SectionDetailSkeleton";
 
 type AssignmentRole = TeacherRoles;
 
@@ -151,7 +141,11 @@ export default function SectionDetailPageClient() {
   const params = useParams<{ sectionId: string }>();
   const { toast } = useToast();
   const bulkUploadInputRef = useRef<HTMLInputElement | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("students");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "students";
+  const [activeTab, setActiveTab] = useState<Tab>(
+    initialTab === "assignments" || initialTab === "diary" ? initialTab : "students",
+  );
 
   // Support navigating to a specific tab via URL hash (e.g. #assignments)
   useEffect(() => {
@@ -656,9 +650,7 @@ export default function SectionDetailPageClient() {
     );
   }
 
-  if (isLoading) {
-    return <SectionDetailSkeleton />;
-  }
+  if (isLoading) return null;
 
   if (isError || !section) {
     return (
@@ -1525,13 +1517,7 @@ export default function SectionDetailPageClient() {
       {/* Diary Tab */}
       {activeTab === "diary" && (
         <>
-          {diaryLoading ? (
-            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 animate-pulse">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-40 bg-muted rounded-xl" />
-              ))}
-            </div>
-          ) : filteredDiary.length === 0 ? (
+          {filteredDiary.length === 0 ? (
             <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
               <BookMarked className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground">
@@ -3329,66 +3315,46 @@ export default function SectionDetailPageClient() {
       </Dialog>
 
       {/* Delete Confirmation Dialog */}
-      <AlertDialog
+      <DeleteConfirmationDialog
         open={!!deleteDialog}
         onOpenChange={() => setDeleteDialog(null)}
-      >
-        <AlertDialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full mx-auto rounded-2xl">
-          <AlertDialogHeader className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                <Trash2 className="h-4 w-4 sm:h-5 sm:w-5 text-destructive" />
-              </div>
-              <AlertDialogTitle className="text-base sm:text-lg">
-                Remove {deleteDialog?.type}?
-              </AlertDialogTitle>
-            </div>
-            <AlertDialogDescription className="text-xs sm:text-sm leading-relaxed">
-              This will permanently remove <strong>{deleteDialog?.name}</strong>{" "}
-              from this section. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="border-t my-2" />
-          <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto text-xs sm:text-sm">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto text-xs sm:text-sm"
-              disabled={
-                deleteStudentMutation.isPending ||
-                deleteAssignmentMutation.isPending ||
-                deleteAllStudentsMutation.isPending ||
-                deleteDiaryMutation.isPending
-              }
-              onClick={() => {
-                if (deleteDialog?.type === "All Students") {
-                  deleteAllStudentsMutation.mutate();
-                  return;
-                }
-                if (deleteDialog?.type?.startsWith("Student")) {
-                  deleteStudentMutation.mutate(deleteDialog.id);
-                  return;
-                }
-                if (
-                  deleteDialog?.type === "assignment" ||
-                  deleteDialog?.type?.startsWith("Teacher")
-                ) {
-                  deleteAssignmentMutation.mutate(deleteDialog.id);
-                  return;
-                }
-                if (deleteDialog?.type === "diary") {
-                  deleteDiaryMutation.mutate(deleteDialog.id);
-                  return;
-                }
-                setDeleteDialog(null);
-              }}
-            >
-              {deleteDialog?.type === "All Students" ? "Remove All" : "Remove"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title={`Remove ${deleteDialog?.type || ""}?`}
+        description={
+          <>
+            This will permanently remove <strong>{deleteDialog?.name}</strong>{" "}
+            from this section. This action cannot be undone.
+          </>
+        }
+        confirmLabel={deleteDialog?.type === "All Students" ? "Remove All" : "Remove"}
+        onConfirm={() => {
+          if (deleteDialog?.type === "All Students") {
+            deleteAllStudentsMutation.mutate();
+            return;
+          }
+          if (deleteDialog?.type?.startsWith("Student")) {
+            deleteStudentMutation.mutate(deleteDialog.id);
+            return;
+          }
+          if (
+            deleteDialog?.type === "assignment" ||
+            deleteDialog?.type?.startsWith("Teacher")
+          ) {
+            deleteAssignmentMutation.mutate(deleteDialog.id);
+            return;
+          }
+          if (deleteDialog?.type === "diary") {
+            deleteDiaryMutation.mutate(deleteDialog.id);
+            return;
+          }
+          setDeleteDialog(null);
+        }}
+        isPending={
+          deleteStudentMutation.isPending ||
+          deleteAssignmentMutation.isPending ||
+          deleteAllStudentsMutation.isPending ||
+          deleteDiaryMutation.isPending
+        }
+      />
     </div>
   );
 }

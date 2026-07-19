@@ -365,19 +365,7 @@ export default function TeacherClassAssignmentsPage() {
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 via-cyan-500/5 to-teal-500/5 rounded-2xl sm:rounded-3xl" />
           <div className="relative rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white/60 backdrop-blur-sm p-4 sm:p-6">
-            {loading ? (
-              <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center animate-pulse">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-slate-200 ring-4 ring-slate-100" />
-                <div className="flex-1 space-y-2 sm:space-y-3 w-full">
-                  <div className="h-5 sm:h-6 w-40 sm:w-48 bg-slate-200 rounded" />
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
-                    <div className="h-4 w-28 sm:w-32 bg-slate-200 rounded" />
-                    <div className="h-4 w-36 sm:w-40 bg-slate-200 rounded" />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center sm:flex-row gap-4 sm:gap-6 sm:items-center">
+            <div className="flex flex-col items-center sm:flex-row gap-4 sm:gap-6 sm:items-center">
                 <div className="relative">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center ring-4 ring-blue-100">
                     <span className="text-xl sm:text-2xl font-bold text-white">
@@ -426,7 +414,6 @@ export default function TeacherClassAssignmentsPage() {
                   </div>
                 </div>
               </div>
-            )}
           </div>
         </div>
 
@@ -903,41 +890,55 @@ export default function TeacherClassAssignmentsPage() {
             </div>
           </div>
           <div className="p-4 sm:p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-              {classAssignments.map((assignment) => (
-                <div
-                  key={assignment.classAssignmentId}
-                  onClick={() =>
-                    handleDiaryClick(assignment.sectionId, assignment.subjectId)
-                  }
-                  className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/30 hover:shadow-md transition-all cursor-pointer group"
-                >
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-100 transition-colors">
-                    <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-slate-500 group-hover:text-indigo-600" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col">
-                      <h4 className="font-bold text-sm sm:text-base text-slate-900 group-hover:text-indigo-700 transition-colors truncate">
-                        {assignment.subjectName}
-                      </h4>
-                      <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">
-                        {getClassName(assignment)} • Section{" "}
-                        {assignment.sectionName}
-                      </span>
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-xl font-bold text-indigo-600 group-hover:bg-indigo-100 transition-all text-xs sm:text-sm flex-shrink-0"
-                  >
-                    <PenLine className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                    <span className="hidden sm:inline">Log Diary</span>
-                    <span className="sm:hidden">Log</span>
-                  </Button>
+            {classAssignments.length === 0 ? (
+              <div className="text-center py-12 sm:py-16 bg-white rounded-2xl sm:rounded-3xl border-2 border-dashed border-slate-200">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-slate-100 rounded-xl sm:rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <PenLine className="h-6 w-6 sm:h-8 sm:w-8 text-slate-400" />
                 </div>
-              ))}
-            </div>
+                <h3 className="text-base sm:text-lg font-semibold mb-2">
+                  No Diary Assignments
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground max-w-sm mx-auto px-4">
+                  There are no class assignments available for diary logging.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+                {classAssignments.map((assignment) => (
+                  <div
+                    key={assignment.classAssignmentId}
+                    onClick={() =>
+                      handleDiaryClick(assignment.sectionId, assignment.subjectId)
+                    }
+                    className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-100 hover:border-indigo-300 hover:bg-indigo-50/30 hover:shadow-md transition-all cursor-pointer group"
+                  >
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-100 transition-colors">
+                      <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-slate-500 group-hover:text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col">
+                        <h4 className="font-bold text-sm sm:text-base text-slate-900 group-hover:text-indigo-700 transition-colors truncate">
+                          {assignment.subjectName}
+                        </h4>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">
+                          {getClassName(assignment)} &bull; Section{" "}
+                          {assignment.sectionName}
+                        </span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-xl font-bold text-indigo-600 group-hover:bg-indigo-100 transition-all text-xs sm:text-sm flex-shrink-0"
+                    >
+                      <PenLine className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                      <span className="hidden sm:inline">Log Diary</span>
+                      <span className="sm:hidden">Log</span>
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -41,16 +41,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/app/_components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/app/_components/ui/alert-dialog";
+import { DeleteConfirmationDialog } from "@/app/_components/DeleteConfirmationDialog";
 import { useToast } from "@/app/_components/ui/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { getStudents, deleteStudent } from "@/lib/api/student";
@@ -58,7 +49,6 @@ import { getActiveSchoolClasses } from "@/lib/api/schoolClass";
 import { getSectionsBySchoolClassId } from "@/lib/api/section";
 import type { SectionResponse, StudentResponse } from "@/types/lms";
 import StudentsStats from "@/app/_components/student/StudentsStats";
-import { StudentListSkeleton } from "@/app/_components/skeletons/StudentListSkeleton";
 import { cn } from "@/lib/utils";
 import { isAxiosError } from "axios";
 import {
@@ -77,7 +67,6 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/app/_components/ui/sheet";
-import useHasMounted from "@/lib/hooks/useHasMounted";
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (isAxiosError(error)) {
@@ -124,34 +113,34 @@ const AVATAR_COLORS = [
   { bg: "bg-purple-100", text: "text-purple-600" },
 ];
 
-type ViewState = "loading" | "error" | "empty" | "content";
+
+
 
 export default function StudentsPageClient() {
-  const hasMounted = useHasMounted();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
   // URL params initialization
-  const [search, setSearch] = useState(searchParams.get("studentName") || "");
+  const [search, setSearch] = useState(searchParams?.get("studentName") || "");
   const [selectedClassId, setSelectedClassId] = useState<string>(
-    searchParams.get("classId") || "",
+    searchParams?.get("classId") || "",
   );
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
-    searchParams.get("sectionId") || "",
+    searchParams?.get("sectionId") || "",
   );
   const [sortBy, setSortBy] = useState(
-    searchParams.get("sortBy") || "studentId",
+    searchParams?.get("sortBy") || "studentId",
   );
-  const [sortDir, setSortDir] = useState(searchParams.get("sortDir") || "ASC");
+  const [sortDir, setSortDir] = useState(searchParams?.get("sortDir") || "ASC");
   const [pageNum, setPageNum] = useState(
-    Number(searchParams.get("pageNum")) || 1,
+    Number(searchParams?.get("pageNum")) || 1,
   );
   const [pageSize, setPageSize] = useState(
-    Number(searchParams.get("pageSize")) || 20,
+    Number(searchParams?.get("pageSize")) || 20,
   );
   const [hasSectionAssignment, setHasSectionAssignment] = useState<string>(
-    searchParams.get("hasSectionAssignment") || "all",
+    searchParams?.get("hasSectionAssignment") || "all",
   );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -291,13 +280,7 @@ export default function StudentsPageClient() {
   const totalPages = Math.max(1, Math.ceil(totalStudents / pageSize));
   const students = studentsData?.content || [];
 
-  const viewState: ViewState = studentsLoading
-    ? "loading"
-    : studentsError
-      ? "error"
-      : students.length === 0
-        ? "empty"
-        : "content";
+  const hasContent = students.length > 0;
 
   // Active filters count
   const activeFiltersCount = [
@@ -338,10 +321,8 @@ export default function StudentsPageClient() {
   ]);
 
   useEffect(() => {
-    if (hasMounted) {
-      updateUrlParams();
-    }
-  }, [updateUrlParams, hasMounted]);
+    updateUrlParams();
+  }, [updateUrlParams]);
 
   // Handlers
   const handleSort = (column: string) => {
@@ -391,8 +372,6 @@ export default function StudentsPageClient() {
     }
     return `${Math.round(average)}%`;
   };
-
-  if (!hasMounted) return null;
 
   // Mobile filter content
   const FilterContent = () => (
@@ -535,13 +514,11 @@ export default function StudentsPageClient() {
         totalStudents={totalStudents}
         classesCount={classes.length}
         sectionsCount={classes.reduce(
-          (sum, schoolClass) => sum + (schoolClass.sectionNames?.length || 0),
+          (sum, schoolClass) => sum + (schoolClass.sections?.length || 0),
           0,
         )}
         currentPage={currentPage}
         totalPages={totalPages}
-        studentsLoading={studentsLoading}
-        classesLoading={classesLoading}
       />
 
       {/* Filters & Search */}
@@ -884,83 +861,32 @@ export default function StudentsPageClient() {
         </div>
       </div>
 
-      {/* Students Display with smooth transitions */}
-      <div className="relative">
-        {/* Loading State */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "loading"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
-          )}
-        >
-          <StudentListSkeleton viewMode={viewMode} />
-        </div>
-
-        {/* Error State */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "error"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
-          )}
-        >
-          <div className="flex items-center justify-center py-16 sm:py-20">
-            <div className="flex flex-col items-center gap-3 text-center">
-              <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                <Plus className="h-5 w-5 text-destructive rotate-45" />
-              </div>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Error loading students
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void refetchStudents()}
-              >
-                Retry
-              </Button>
+      {/* Error State */}
+      {studentsError && (
+        <div className="flex items-center justify-center py-16 sm:py-20">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
+              <Plus className="h-5 w-5 text-destructive rotate-45" />
             </div>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Error loading students
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refetchStudents()}
+            >
+              Retry
+            </Button>
           </div>
         </div>
+      )}
 
-        {/* Empty State */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "empty"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
-          )}
-        >
-          <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
-            <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">No students found</p>
-            {activeFiltersCount > 0 && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-3"
-                onClick={handleClearFilters}
-              >
-                Clear filters
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Content State */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "content"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
-          )}
-        >
-          {viewMode === "grid" ? (
+      {/* Content or Empty State */}
+      {!studentsError && (
+        <>
+        {hasContent ? (
+          viewMode === "grid" ? (
             <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {students.map((student, index) => {
                 const initials = student.studentName
@@ -988,7 +914,6 @@ export default function StudentsPageClient() {
                     }
                   >
                     <div className="p-4 sm:p-5">
-                      {/* Top Section */}
                       <div className="flex items-start gap-3 mb-3 sm:mb-4">
                         <div
                           className={cn(
@@ -1018,39 +943,27 @@ export default function StudentsPageClient() {
                           </div>
                         </div>
                       </div>
-
-                      {/* Divider */}
                       <div className="border-t mb-3 sm:mb-4" />
-
-                      {/* Stats */}
                       <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center bg-muted/30 rounded-lg p-2.5 sm:p-3">
                         <div>
                           <p className="text-xs font-bold truncate">
                             {formatStudentGrade(student)}
                           </p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            Class
-                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Class</p>
                         </div>
                         <div>
                           <p className="text-xs font-bold truncate">
                             {formatStudentSection(student)}
                           </p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            Section
-                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Section</p>
                         </div>
                         <div>
                           <p className="text-xs font-bold">
                             {formatStudentAttendance(student)}
                           </p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">
-                            Attendance
-                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">Attendance</p>
                         </div>
                       </div>
-
-                      {/* Actions */}
                       <div className="flex gap-2 mt-3 sm:mt-4">
                         <Button
                           variant="outline"
@@ -1081,45 +994,30 @@ export default function StudentsPageClient() {
               })}
             </div>
           ) : (
-            /* List View */
             <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/30">
-                      <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Student
-                      </th>
-                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Class & Section
-                      </th>
-                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Attendance
-                      </th>
-                      <th className="px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Status
-                      </th>
+                      <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Student</th>
+                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Class & Section</th>
+                      <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Attendance</th>
+                      <th className="px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
                       <th className="px-3 sm:px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground w-16"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {students.map((student, index) => {
-                      const avatarColor =
-                        AVATAR_COLORS[index % AVATAR_COLORS.length];
+                      const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
                       const hasClassAndSection =
                         Boolean(student.studentClass?.grade?.trim()) &&
                         Boolean(student.studentClass?.sectionName?.trim());
-                      const statusText = hasClassAndSection
-                        ? "Active"
-                        : "Inactive";
-
+                      const statusText = hasClassAndSection ? "Active" : "Inactive";
                       return (
                         <tr
                           key={student.studentId}
                           className="hover:bg-muted/20 transition-colors cursor-pointer"
-                          onClick={() =>
-                            router.push(`/admin/students/${student.studentId}`)
-                          }
+                          onClick={() => router.push(`/admin/students/${student.studentId}`)}
                         >
                           <td className="px-3 sm:px-5 py-3">
                             <div className="flex items-center gap-2 sm:gap-3">
@@ -1133,75 +1031,38 @@ export default function StudentsPageClient() {
                                 {student.studentName.charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">
-                                  {student.studentName}
-                                </p>
+                                <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">{student.studentName}</p>
                                 <p className="sm:hidden text-[11px] text-muted-foreground">
-                                  {formatStudentGrade(student)}{" "}
-                                  {formatStudentSection(student) !== "—"
-                                    ? `• ${formatStudentSection(student)}`
-                                    : ""}
+                                  {formatStudentGrade(student)} {formatStudentSection(student) !== "—" ? `• ${formatStudentSection(student)}` : ""}
                                 </p>
                               </div>
                             </div>
                           </td>
                           <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
-                            {formatStudentGrade(student)}{" "}
-                            {formatStudentSection(student) !== "—"
-                              ? `• ${formatStudentSection(student)}`
-                              : ""}
+                            {formatStudentGrade(student)} {formatStudentSection(student) !== "—" ? `• ${formatStudentSection(student)}` : ""}
                           </td>
                           <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
                             {formatStudentAttendance(student)}
                           </td>
                           <td className="px-3 sm:px-5 py-3 text-center">
-                            <Badge
-                              className={cn(
-                                "text-[10px] px-2 py-0 h-5",
-                                hasClassAndSection
-                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm"
-                                  : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm",
-                              )}
-                            >
-                              {hasClassAndSection ? (
-                                <UserCheck className="h-3 w-3 mr-1" />
-                              ) : (
-                                <UserX className="h-3 w-3 mr-1" />
-                              )}
+                            <Badge className={cn("text-[10px] px-2 py-0 h-5", hasClassAndSection ? "bg-emerald-100 text-emerald-700 border-emerald-200 shadow-sm" : "bg-amber-50 text-amber-700 border-amber-200 shadow-sm")}>
+                              {hasClassAndSection ? <UserCheck className="h-3 w-3 mr-1" /> : <UserX className="h-3 w-3 mr-1" />}
                               {statusText}
                             </Badge>
                           </td>
                           <td className="px-3 sm:px-5 py-3 text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => e.stopPropagation()}>
                                   <MoreHorizontal className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    router.push(
-                                      `/admin/students/${student.studentId}`,
-                                    );
-                                  }}
-                                >
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); router.push(`/admin/students/${student.studentId}`); }}>
                                   <Eye className="mr-2 h-4 w-4" /> View
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeleteDialog(student);
-                                  }}
-                                >
+                                <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDialog(student); }}>
                                   <Trash2 className="mr-2 h-4 w-4" /> Delete
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -1214,12 +1075,23 @@ export default function StudentsPageClient() {
                 </table>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          )
+        ) : (
+          <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
+            <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No students found</p>
+            {activeFiltersCount > 0 && (
+              <Button variant="outline" size="sm" className="mt-3" onClick={handleClearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
+        )}
+        </>
+      )}
 
       {/* Pagination - only show when there's content */}
-      {viewState === "content" && students.length > 0 && (
+      {hasContent && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 py-3 border rounded-xl bg-card shadow-sm">
           <div className="text-xs text-muted-foreground order-2 sm:order-1">
             {(currentPage - 1) * pageSize + 1}–
@@ -1434,47 +1306,24 @@ export default function StudentsPageClient() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
-      <AlertDialog
+      <DeleteConfirmationDialog
         open={!!deleteDialog}
         onOpenChange={() => setDeleteDialog(null)}
-      >
-        <AlertDialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full mx-auto rounded-2xl">
-          <AlertDialogHeader className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                <Trash2 className="h-4 w-4 sm:h-5 sm:w-5 text-destructive" />
-              </div>
-              <AlertDialogTitle className="text-base sm:text-lg">
-                Delete Student?
-              </AlertDialogTitle>
-            </div>
-            <AlertDialogDescription className="text-xs sm:text-sm leading-relaxed">
-              This will permanently remove{" "}
-              <strong>{deleteDialog?.studentName}</strong> and all associated
-              data. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="border-t my-2" />
-          <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
-              disabled={deleteStudentMutation.isPending}
-              onClick={(e) => {
-                e.preventDefault();
-                if (deleteDialog?.studentId) {
-                  deleteStudentMutation.mutate(deleteDialog.studentId);
-                }
-              }}
-            >
-              {deleteStudentMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Delete Student?"
+        description={
+          <>
+            This will permanently remove{" "}
+            <strong>{deleteDialog?.studentName}</strong> and all associated
+            data. This action cannot be undone.
+          </>
+        }
+        onConfirm={() => {
+          if (deleteDialog?.studentId) {
+            deleteStudentMutation.mutate(deleteDialog.studentId);
+          }
+        }}
+        isPending={deleteStudentMutation.isPending}
+      />
     </div>
   );
 }

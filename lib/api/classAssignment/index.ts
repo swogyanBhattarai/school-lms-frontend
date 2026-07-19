@@ -70,6 +70,21 @@ export const getClassAssignmentsForTeacher = async (): Promise<
 };
 
 /**
+ * Fetch class assignments for a specific teacher by ID (admin use)
+ * Pass a date string (YYYY-MM-DD) to check attendance status for that day.
+ */
+export const getClassAssignmentsByTeacherId = async (
+  teacherId: number,
+  attendanceDate: string
+): Promise<ClassAssignmentAttendanceResponse[]> => {
+  const response = await api.get<ClassAssignmentAttendanceResponse[]>(
+    `/api/class-assignment/teacher/${teacherId}`,
+    { params: { attendanceDate } }
+  );
+  return response.data;
+};
+
+/**
  * Delete a class assignment
  */
 export const deleteClassAssignment = async (id: number) => {

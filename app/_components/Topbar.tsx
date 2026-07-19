@@ -149,15 +149,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {loading ? (
-          <div className="flex items-center gap-3 animate-pulse px-2 py-1">
-            <div className="h-8 w-8 rounded-full bg-muted" />
-            <div className="hidden sm:flex flex-col gap-1.5">
-              <div className="h-3 w-24 rounded bg-muted" />
-              <div className="h-3 w-12 rounded bg-muted" />
-            </div>
-          </div>
-        ) : (
+        {(
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button

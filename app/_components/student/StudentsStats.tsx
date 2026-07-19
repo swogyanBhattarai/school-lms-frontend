@@ -6,8 +6,6 @@ type StudentsStatsProps = {
   sectionsCount: number;
   currentPage: number;
   totalPages: number;
-  studentsLoading: boolean;
-  classesLoading: boolean;
 };
 
 export default function StudentsStats({
@@ -16,8 +14,6 @@ export default function StudentsStats({
   sectionsCount,
   currentPage,
   totalPages,
-  studentsLoading,
-  classesLoading,
 }: StudentsStatsProps) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -29,11 +25,7 @@ export default function StudentsStats({
           <div>
             <p className="text-xs text-muted-foreground">Total Students</p>
             <p className="text-xl font-bold">
-                {studentsLoading ? (
-                <span className="inline-block h-5 w-12 bg-muted rounded animate-pulse" />
-              ) : (
-                totalStudents
-              )}
+                {totalStudents}
             </p>
           </div>
         </div>
@@ -46,11 +38,7 @@ export default function StudentsStats({
           <div>
             <p className="text-xs text-muted-foreground">Active Classes</p>
             <p className="text-xl font-bold">
-                {classesLoading ? (
-                <span className="inline-block h-5 w-12 bg-muted rounded animate-pulse" />
-              ) : (
-                classesCount
-              )}
+                {classesCount}
             </p>
           </div>
         </div>

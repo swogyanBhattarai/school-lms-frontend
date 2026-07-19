@@ -1,9 +1,14 @@
 import api from "@/lib/api";
 import type {
   FeePaymentCreate,
+  FeeStatResponse,
+  FeeTypeStatResponse,
+  OverdueStudentResponse,
   StudentFeeCreate,
   StudentFeeResponse,
+  SummaryFeeStats,
   FeeStatus,
+  FeeTypes,
 } from "@/types/lms";
 
 const BASE_URL = "/api/student-fee";
@@ -36,6 +41,56 @@ export const getAllStudentFeesFiltered = async (
   if (academicYearId !== undefined && academicYearId !== null) params.academicYearId = String(academicYearId);
   if (feeStatus) params.feeStatus = feeStatus;
   const res = await api.get<StudentFeeResponse[]>(`${BASE_URL}/dashboard/${studentId}`, { params });
+  return res.data;
+};
+
+export const getFeeStats = async (
+  feeStatus?: FeeStatus,
+  classId?: number,
+  sectionId?: number,
+): Promise<FeeStatResponse> => {
+  const params: Record<string, string> = {};
+  if (feeStatus) params.feeStatus = feeStatus;
+  if (classId !== undefined && classId !== null) params.classId = String(classId);
+  if (sectionId !== undefined && sectionId !== null) params.sectionId = String(sectionId);
+  const res = await api.get<FeeStatResponse>(`${BASE_URL}/admin/stats`, { params });
+  return res.data;
+};
+
+export const getClassFeeStat = async (
+  feeStatus?: FeeStatus,
+  classId?: number,
+  sectionId?: number,
+): Promise<SummaryFeeStats[]> => {
+  const params: Record<string, string> = {};
+  if (feeStatus) params.feeStatus = feeStatus;
+  if (classId !== undefined && classId !== null) params.classId = String(classId);
+  if (sectionId !== undefined && sectionId !== null) params.sectionId = String(sectionId);
+  const res = await api.get<SummaryFeeStats[]>(`${BASE_URL}/admin/stats/class`, { params });
+  return res.data;
+};
+
+export const getOverdueStudents = async (
+  feeType?: FeeTypes,
+  classId?: number,
+  sectionId?: number,
+): Promise<OverdueStudentResponse[]> => {
+  const params: Record<string, string> = {};
+  if (feeType) params.feeType = feeType;
+  if (classId !== undefined && classId !== null) params.classId = String(classId);
+  if (sectionId !== undefined && sectionId !== null) params.sectionId = String(sectionId);
+  const res = await api.get<OverdueStudentResponse[]>(`${BASE_URL}/admin/stats/overdue`, { params });
+  return res.data;
+};
+
+export const getFeeTypeStats = async (
+  classId?: number,
+  sectionId?: number,
+): Promise<FeeTypeStatResponse[]> => {
+  const params: Record<string, string> = {};
+  if (classId !== undefined && classId !== null) params.classId = String(classId);
+  if (sectionId !== undefined && sectionId !== null) params.sectionId = String(sectionId);
+  const res = await api.get<FeeTypeStatResponse[]>(`${BASE_URL}/admin/stats/types`, { params });
   return res.data;
 };
 

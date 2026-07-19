@@ -57,17 +57,7 @@ export default function StudentsTable({
           </tr>
         </thead>
         <tbody className="divide-y">
-          {loading ? (
-            <tr>
-              <td colSpan={3} className="px-5 py-8">
-                <div className="space-y-3 animate-pulse">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="h-12 bg-muted rounded-xl" />
-                  ))}
-                </div>
-              </td>
-            </tr>
-          ) : error ? (
+          {error ? (
             <tr>
               <td colSpan={3} className="px-5 py-16 text-center">
                 <div className="flex flex-col items-center gap-3">

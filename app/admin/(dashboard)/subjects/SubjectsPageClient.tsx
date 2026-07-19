@@ -7,13 +7,12 @@ import {
   Plus,
   Pencil,
   Trash2,
-  MoreHorizontal,
   Eye,
-  Download,
   X,
   BookOpen,
 
   AlertCircle,
+  UserCheck,
   RefreshCw,
   FlaskConical,
   Calculator,
@@ -24,7 +23,6 @@ import {
   Atom,
   LayoutGrid,
   List,
-  Check,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Input } from "@/app/_components/ui/input";
@@ -37,13 +35,6 @@ import {
   SelectValue,
 } from "@/app/_components/ui/select";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/app/_components/ui/dropdown-menu";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -51,16 +42,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/app/_components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/app/_components/ui/alert-dialog";
+import { DeleteConfirmationDialog } from "@/app/_components/DeleteConfirmationDialog";
 import { cn, getApiErrorMessage } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -75,7 +57,6 @@ import type {
   SubjectCreate,
   SubjectUpdate,
 } from "@/types/lms";
-import { ListPageSkeleton } from "@/app/_components/skeletons/ListPageSkeleton";
 
 // Constants
 const SUBJECT_ICONS: Record<string, typeof BookOpen> = {
@@ -230,85 +211,36 @@ export default function SubjectsPageClient() {
     return SUBJECT_ICONS[subjectName] || BookOpen;
   };
 
-  const handleExport = () => {
-    const data = subjects.map((subject) => ({
-      subjectId: subject.subjectId,
-      subjectName: subject.subjectName,
-    }));
-    const blob = new Blob([JSON.stringify(data, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `subjects-export-${new Date().toISOString().split("T")[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({
-      title: "Exported",
-      description: `${subjects.length} subjects exported successfully.`,
-    });
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Subjects</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Subjects</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
             Manage academic subjects and curriculum
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleExport}
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Export
-          </Button>
-          <Button onClick={() => setAddDialogOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Subject
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border bg-card p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Total Subjects</p>
-              <p className="text-xl font-bold">
-                {subjectsLoading ? (
-                  <span className="h-5 w-12 bg-muted rounded animate-pulse inline-block" />
-                ) : (
-                  totalSubjects
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
+        <Button
+          onClick={() => setAddDialogOpen(true)}
+          className="gap-2 shadow-sm text-xs sm:text-sm w-full sm:w-auto"
+        >
+          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          Add Subject
+        </Button>
       </div>
 
       {/* Filters & Search */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h2 className="text-lg font-semibold">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <h2 className="text-base sm:text-lg font-semibold">
             All Subjects
-            <span className="text-sm font-normal text-muted-foreground ml-2">
+            <span className="text-xs sm:text-sm font-normal text-muted-foreground ml-2">
               {filteredSubjects.length} total
             </span>
           </h2>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="relative flex-1 sm:flex-initial sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -353,35 +285,49 @@ export default function SubjectsPageClient() {
         </div>
       </div>
 
-      {/* Subjects Display */}
-      {subjectsLoading ? (
-        <ListPageSkeleton cardCount={8} />
-      ) : subjectsError ? (
-        <div className="flex items-center justify-center py-20">
+      {/* Loading State */}
+      {subjectsLoading && (
+        <div className="flex items-center justify-center py-16 sm:py-20">
           <div className="flex flex-col items-center gap-3">
-            <AlertCircle className="h-8 w-8 text-destructive" />
-            <p className="text-sm text-muted-foreground">
+            <RefreshCw className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground animate-spin" />
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Loading subjects...
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {subjectsError && !subjectsLoading && (
+        <div className="flex items-center justify-center py-16 sm:py-20">
+          <div className="flex flex-col items-center gap-3">
+            <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-destructive" />
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Failed to load subjects
             </p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => refetchSubjects()}
+              className="text-xs sm:text-sm"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
               Retry
             </Button>
           </div>
         </div>
-      ) : filteredSubjects.length === 0 ? (
-        <div className="rounded-xl border bg-card py-20 text-center">
-          <BookOpen className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-          <p className="text-muted-foreground">No subjects found</p>
+      )}
+
+      {/* Empty State */}
+      {!subjectsLoading && !subjectsError && filteredSubjects.length === 0 && (
+        <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
+          <BookOpen className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
+          <p className="text-sm text-muted-foreground">No subjects found</p>
           {debouncedSearch && (
             <Button
               variant="outline"
               size="sm"
-              className="mt-3"
+              className="mt-3 text-xs"
               onClick={() => {
                 setSearch("");
                 setDebouncedSearch("");
@@ -391,7 +337,12 @@ export default function SubjectsPageClient() {
             </Button>
           )}
         </div>
-      ) : viewMode === "grid" ? (
+      )}
+
+      {/* Content */}
+      {!subjectsLoading && !subjectsError && filteredSubjects.length > 0 && (
+        <>
+        {viewMode === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredSubjects.map((subject, index) => {
             const Icon = getSubjectIcon(subject.subjectName);
@@ -415,10 +366,8 @@ export default function SubjectsPageClient() {
                     >
                       <Icon className={cn("w-5 h-5 text-blue-600")} />
                     </div>
-                    <Badge
-                      className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 h-5 px-1.5 flex items-center gap-1 shadow-sm"
-                    >
-                      <Check className="h-3 w-3" />
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] px-2 py-0.5 font-medium flex items-center gap-1">
+                      <UserCheck className="h-3 w-3" />
                       Active
                     </Badge>
                   </div>
@@ -444,42 +393,17 @@ export default function SubjectsPageClient() {
                       <Eye className="h-3.5 w-3.5 mr-1.5" />
                       View
                     </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingSubject(subject);
-                            setEditSubjectName(subject.subjectName);
-                            setEditDialogOpen(true);
-                          }}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteDialog(subject);
-                          }}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeleteDialog(subject);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -528,42 +452,17 @@ export default function SubjectsPageClient() {
                         </div>
                       </td>
                       <td className="px-5 py-3 text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingSubject(subject);
-                                setEditSubjectName(subject.subjectName);
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteDialog(subject);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteDialog(subject);
+                          }}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                       </td>
                     </tr>
                   );
@@ -573,25 +472,27 @@ export default function SubjectsPageClient() {
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* Add Subject Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0 gap-0">
-          <div className="px-6 pt-6 pb-4">
+        <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto rounded-2xl">
+          <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
             <DialogHeader className="space-y-1.5">
-              <DialogTitle className="text-xl font-semibold tracking-tight">
+              <DialogTitle className="text-lg sm:text-xl font-semibold tracking-tight">
                 Add Subject
               </DialogTitle>
-              <DialogDescription className="text-sm leading-relaxed">
+              <DialogDescription className="text-xs sm:text-sm leading-relaxed">
                 Add a new subject to the school curriculum.
               </DialogDescription>
             </DialogHeader>
           </div>
           <div className="border-t" />
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                <BookOpen className="h-4 w-4 text-blue-600" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
               </div>
               <h4 className="text-sm font-semibold">Subject Information</h4>
             </div>
@@ -603,18 +504,18 @@ export default function SubjectsPageClient() {
               </label>
               <Input
                 placeholder="Enter subject name"
-                className="h-11"
+                className="h-10 sm:h-11"
                 value={newSubjectName}
                 onChange={(event) => setNewSubjectName(event.target.value)}
               />
             </div>
           </div>
           <div className="border-t" />
-          <div className="px-6 py-4 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 sm:gap-0">
             <Button
               variant="ghost"
               onClick={() => setAddDialogOpen(false)}
-              className="text-sm font-medium"
+              className="text-sm font-medium w-full sm:w-auto"
             >
               Cancel
             </Button>
@@ -632,7 +533,7 @@ export default function SubjectsPageClient() {
                 } as SubjectCreate);
               }}
               disabled={createSubjectMutation.isPending}
-              className="gap-2 text-sm font-medium"
+              className="gap-2 text-sm font-medium w-full sm:w-auto"
             >
               <Plus className="h-4 w-4" />
               {createSubjectMutation.isPending ? "Adding..." : "Add Subject"}
@@ -643,22 +544,22 @@ export default function SubjectsPageClient() {
 
       {/* Edit Subject Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0 gap-0">
-          <div className="px-6 pt-6 pb-4">
+        <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto rounded-2xl">
+          <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
             <DialogHeader className="space-y-1.5">
-              <DialogTitle className="text-xl font-semibold tracking-tight">
+              <DialogTitle className="text-lg sm:text-xl font-semibold tracking-tight">
                 Edit Subject
               </DialogTitle>
-              <DialogDescription className="text-sm leading-relaxed">
+              <DialogDescription className="text-xs sm:text-sm leading-relaxed">
                 Update subject information.
               </DialogDescription>
             </DialogHeader>
           </div>
           <div className="border-t" />
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-4 sm:px-6 py-4 sm:py-5 space-y-4 sm:space-y-5">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                <Pencil className="h-4 w-4 text-blue-600" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
               </div>
               <h4 className="text-sm font-semibold">Subject Information</h4>
             </div>
@@ -670,21 +571,21 @@ export default function SubjectsPageClient() {
               </label>
               <Input
                 placeholder="Enter subject name"
-                className="h-11"
+                className="h-10 sm:h-11"
                 value={editSubjectName}
                 onChange={(event) => setEditSubjectName(event.target.value)}
               />
             </div>
           </div>
           <div className="border-t" />
-          <div className="px-6 py-4 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3 sm:gap-0">
             <Button
               variant="ghost"
               onClick={() => {
                 setEditDialogOpen(false);
                 setEditingSubject(null);
               }}
-              className="text-sm font-medium"
+              className="text-sm font-medium w-full sm:w-auto"
             >
               Cancel
             </Button>
@@ -707,7 +608,7 @@ export default function SubjectsPageClient() {
                 }
               }}
               disabled={updateSubjectMutation.isPending}
-              className="gap-2 text-sm font-medium"
+              className="gap-2 text-sm font-medium w-full sm:w-auto"
             >
               <Pencil className="h-4 w-4" />
               {updateSubjectMutation.isPending
@@ -718,37 +619,24 @@ export default function SubjectsPageClient() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
-      <AlertDialog
+      <DeleteConfirmationDialog
         open={!!deleteDialog}
         onOpenChange={() => setDeleteDialog(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Subject?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove{" "}
-              <strong>{deleteDialog?.subjectName}</strong> and all associated
-              data. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={deleteSubjectMutation.isPending}
-              onClick={(e) => {
-                e.preventDefault();
-                if (deleteDialog?.subjectId) {
-                  deleteSubjectMutation.mutate(deleteDialog.subjectId);
-                }
-              }}
-            >
-              {deleteSubjectMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Delete Subject?"
+        description={
+          <>
+            This will permanently remove{" "}
+            <strong>{deleteDialog?.subjectName}</strong> and all associated
+            data. This action cannot be undone.
+          </>
+        }
+        onConfirm={() => {
+          if (deleteDialog?.subjectId) {
+            deleteSubjectMutation.mutate(deleteDialog.subjectId);
+          }
+        }}
+        isPending={deleteSubjectMutation.isPending}
+      />
     </div>
   );
 }

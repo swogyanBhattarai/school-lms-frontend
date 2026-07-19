@@ -56,6 +56,22 @@ export const createMassAttendance = async (
 };
 
 /**
+ * Create attendance records for a section and subject by a specific teacher (admin use)
+ */
+export const createMassAttendanceByTeacher = async (
+  sectionId: number,
+  subjectId: number,
+  teacherId: number,
+  payload: MassAttendance
+): Promise<string> => {
+  const response = await api.post(
+    `/api/attendance/section/${sectionId}/subject/${subjectId}/teacher/${teacherId}`,
+    payload
+  );
+  return response.data;
+};
+
+/**
  * Fetch attendance for a section and subject (today)
  */
 export const getAttendanceBySectionAndSubject = async (
@@ -64,6 +80,23 @@ export const getAttendanceBySectionAndSubject = async (
 ): Promise<AttendanceResponse[]> => {
   const response = await api.get<AttendanceResponse[]>(
     `/api/attendance/section/${sectionId}/subject/${subjectId}`
+  );
+  return response.data;
+};
+
+/**
+ * Fetch attendance for a section and subject by a specific teacher (admin use)
+ * Optionally pass a date (YYYY-MM-DD) to check attendance for a specific day.
+ */
+export const getAttendanceBySectionAndSubjectAndTeacher = async (
+  sectionId: number,
+  subjectId: number,
+  teacherId: number,
+  attendanceDate?: string
+): Promise<AttendanceResponse[]> => {
+  const response = await api.get<AttendanceResponse[]>(
+    `/api/attendance/section/${sectionId}/subject/${subjectId}/teacher/${teacherId}`,
+    attendanceDate ? { params: { attendanceDate } } : undefined
   );
   return response.data;
 };

@@ -38,16 +38,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/app/_components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/app/_components/ui/alert-dialog";
+import { DeleteConfirmationDialog } from "@/app/_components/DeleteConfirmationDialog";
 import { Badge } from "@/app/_components/ui/badge";
 import { useToast } from "@/app/_components/ui/use-toast";
 import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
@@ -79,7 +70,6 @@ import type {
   SchoolClassCreate,
   SchoolClassUpdate,
 } from "@/types/lms";
-import { AcademicYearsSkeleton } from "@/app/_components/skeletons/AcademicYearsSkeleton";
 
 // Helper function to format date
 function fmtDate(d: string) {
@@ -159,7 +149,7 @@ export default function AcademicYearsPageClient() {
   } | null>(null);
 
   const {
-    data: academicYearData,
+    data: academicYearData = [],
     isLoading: academicYearsLoading,
     isError: academicYearsError,
     refetch: refetchAcademicYears,
@@ -251,8 +241,7 @@ export default function AcademicYearsPageClient() {
 
   // Sort and filter data
   const academicYears = useMemo(() => {
-    const data = academicYearData ?? [];
-    return data
+    return academicYearData
       .sort((a, b) => a.academicYearId - b.academicYearId)
       .map(year => ({
         ...year,
@@ -297,15 +286,6 @@ export default function AcademicYearsPageClient() {
           )
       )
   );
-
-  type ViewState = "loading" | "error" | "empty" | "content";
-  const viewState: ViewState = academicYearsLoading
-    ? "loading"
-    : academicYearsError
-      ? "error"
-      : filteredYears.length === 0
-        ? "empty"
-        : "content";
 
   // Academic Year CRUD
   const openCreateYear = () => {
@@ -610,10 +590,8 @@ export default function AcademicYearsPageClient() {
   const activeYear = academicYears.find(y => y.isActive);
   const totalClasses = activeYear?.classes?.length ?? 0;
   const totalSections = activeYear?.classes?.reduce((sum, c) => sum + (c.sections?.length ?? 0), 0) ?? 0;
-  
-  const upcomingYears = academicYears.filter(
-    y => !y.isActive && new Date(y.startDate) > new Date()
-  ).length;
+
+  const hasContent = filteredYears.length > 0;
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6">
@@ -631,71 +609,113 @@ export default function AcademicYearsPageClient() {
         </Button>
       </div>
 
-      {/* Main content with viewState transitions */}
-      <div className="relative">
-        {/* Loading */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "loading"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
-          )}
-        >
-          <AcademicYearsSkeleton />
+      {/* Error State */}
+      {academicYearsError && (
+        <div className="flex items-center justify-center py-16 sm:py-20">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
+              <AlertCircle className="h-5 w-5 text-destructive" />
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Error loading academic years
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refetchAcademicYears()}
+            >
+              Retry
+            </Button>
+          </div>
         </div>
+      )}
 
-        {/* Error */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "error"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
-          )}
-        >
-          <div className="flex items-center justify-center py-16 sm:py-20">
-            <div className="flex flex-col items-center gap-3 text-center">
-              <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
-                <AlertCircle className="h-5 w-5 text-destructive" />
+      {/* Stats Cards - Always visible when no error */}
+      {!academicYearsError && (
+        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
               </div>
-              <p className="text-xs sm:text-sm text-muted-foreground">
-                Error loading academic years
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void refetchAcademicYears()}
-              >
-                Retry
-              </Button>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Total Years</p>
+                <p className="text-lg sm:text-xl font-bold">{totalYears}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Year</p>
+                <p className="text-lg sm:text-xl font-bold truncate max-w-[100px] sm:max-w-[120px]">
+                  {activeYear?.academicYear || "None"}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Classes</p>
+                <p className="text-lg sm:text-xl font-bold">{totalClasses}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Sections</p>
+                <p className="text-lg sm:text-xl font-bold">{totalSections}</p>
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Empty */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "empty"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
-          )}
-        >
-          <div className="space-y-4 sm:space-y-6">
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 bg-muted rounded-lg flex-shrink-0" />
-                    <div className="min-w-0 space-y-1 flex-1">
-                      <div className="h-3 w-20 bg-muted rounded" />
-                      <div className="h-5 w-12 bg-muted rounded" />
-                    </div>
-                  </div>
-                </div>
-              ))}
+      {/* Main Content - Only show when no error */}
+      {!academicYearsError && (
+        <>
+          {/* Search with Context */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
+            <div className="relative w-full sm:w-80">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search years, classes, or sections..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 h-10 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-colors text-sm"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                >
+                  <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
+                </button>
+              )}
             </div>
+            {search && hasContent && (
+              <p className="text-xs text-muted-foreground">
+                Found {filteredYears.length} {filteredYears.length === 1 ? 'year' : 'years'}
+              </p>
+            )}
+          </div>
+
+          {/* Empty State */}
+          {!academicYearsLoading && !hasContent && (
             <div className="text-center py-12 sm:py-16 bg-card rounded-xl border-2 border-dashed">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-muted rounded-xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
                 <CalendarDays className="w-6 h-6 sm:w-8 sm:h-8 text-muted-foreground" />
@@ -711,98 +731,10 @@ export default function AcademicYearsPageClient() {
                 </Button>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out",
-            viewState === "content"
-              ? "opacity-100 visible"
-              : "opacity-0 invisible absolute inset-0",
           )}
-        >
-          <div className="space-y-4 sm:space-y-6">
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <CalendarDays className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Total Years</p>
-                    <p className="text-lg sm:text-xl font-bold">{totalYears}</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Check className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Year</p>
-                    <p className="text-lg sm:text-xl font-bold truncate max-w-[100px] sm:max-w-[120px]">
-                      {activeYear?.academicYear || "None"}
-                    </p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <GraduationCap className="w-4 h-4 sm:w-5 sm:h-5 text-violet-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Classes</p>
-                    <p className="text-lg sm:text-xl font-bold">{totalClasses}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border bg-card p-3 sm:p-4 shadow-sm">
-                <div className="flex items-center gap-2 sm:gap-3">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <Users className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-muted-foreground font-medium">Active Sections</p>
-                    <p className="text-lg sm:text-xl font-bold">{totalSections}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Search with Context */}
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search years, classes, or sections..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 h-10 bg-muted/30 border-muted-foreground/20 focus:bg-background transition-colors text-sm"
-                />
-                {search && (
-                  <button
-                    onClick={() => setSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
-                  >
-                    <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                  </button>
-                )}
-              </div>
-              {search && (
-                <p className="text-xs text-muted-foreground">
-                  Found {filteredYears.length} {filteredYears.length === 1 ? 'year' : 'years'}
-                </p>
-              )}
-            </div>
-
-            {/* Enhanced Accordion List */}
+          {/* Enhanced Accordion List */}
+          {hasContent && (
             <div className="space-y-2 sm:space-y-3">
               {filteredYears.map((year) => (
             <div 
@@ -1020,7 +952,8 @@ export default function AcademicYearsPageClient() {
                                     Organize students into sections
                                   </p>
                                 </div>
-                                <Button                                  variant="outline"
+                                <Button
+                                  variant="outline"
                                   size="sm"
                                   className="gap-2 text-xs w-full sm:w-auto"
                                   onClick={() => openCreateSection(cls.schoolClassId)}
@@ -1116,9 +1049,9 @@ export default function AcademicYearsPageClient() {
             </div>
           ))}
       </div>
-          </div>
-        </div>
-      </div>
+          )}
+        </>
+      )}
 
       {/* Academic Year Dialog */}
       <Dialog open={yearDialog} onOpenChange={setYearDialog}>
@@ -1268,37 +1201,19 @@ export default function AcademicYearsPageClient() {
       </Dialog>
 
       {/* Delete Year Dialog */}
-      <AlertDialog
+      <DeleteConfirmationDialog
         open={!!deleteDialog}
         onOpenChange={(open) => !open && setDeleteDialog(null)}
-      >
-        <AlertDialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full mx-auto rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-destructive" />
-              Delete Academic Year?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove <strong>{deleteDialog?.name}</strong> and all associated classes,
-              sections, and assignments. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="border-t my-2" />
-          <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
-              disabled={deleteYearMutation.isPending}
-              onClick={(e) => {
-                e.preventDefault();
-                handleDelete();
-              }}
-            >
-              {deleteYearMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Delete Academic Year?"
+        description={
+          <>
+            This will permanently remove <strong>{deleteDialog?.name}</strong> and all associated classes,
+            sections, and assignments. This action cannot be undone.
+          </>
+        }
+        onConfirm={handleDelete}
+        isPending={deleteYearMutation.isPending}
+      />
 
       {/* Class Dialog */}
       <Dialog open={classDialog} onOpenChange={setClassDialog}>
@@ -1397,66 +1312,32 @@ export default function AcademicYearsPageClient() {
       </Dialog>
 
       {/* Delete Class Dialog */}
-      <AlertDialog
+      <DeleteConfirmationDialog
         open={!!deleteClassDialog}
         onOpenChange={(open) => !open && setDeleteClassDialog(null)}
-      >
-        <AlertDialogContent className="sm:max-w-md rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-destructive" />
-              Delete Class?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove Grade {deleteClassDialog?.grade} and all its sections.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
-              disabled={deleteClassMutation.isPending}
-              onClick={(e) => {
-                e.preventDefault();
-                handleDeleteClass();
-              }}
-            >
-              {deleteClassMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Delete Class?"
+        description={
+          <>
+            This will permanently remove Grade {deleteClassDialog?.grade} and all its sections.
+          </>
+        }
+        onConfirm={handleDeleteClass}
+        isPending={deleteClassMutation.isPending}
+      />
 
       {/* Delete Section Dialog */}
-      <AlertDialog
+      <DeleteConfirmationDialog
         open={!!deleteSectionDialog}
         onOpenChange={(open) => !open && setDeleteSectionDialog(null)}
-      >
-        <AlertDialogContent className="sm:max-w-md rounded-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-destructive" />
-              Delete Section?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently remove Section {deleteSectionDialog?.name} and all its associated data.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-            <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 w-full sm:w-auto"
-              disabled={deleteSectionMutation.isPending}
-              onClick={(e) => {
-                e.preventDefault();
-                handleDeleteSection();
-              }}
-            >
-              {deleteSectionMutation.isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        title="Delete Section?"
+        description={
+          <>
+            This will permanently remove Section {deleteSectionDialog?.name} and all its associated data.
+          </>
+        }
+        onConfirm={handleDeleteSection}
+        isPending={deleteSectionMutation.isPending}
+      />
     </div>
   );
 }

@@ -217,23 +217,7 @@ function TeacherSidebar({
           className="p-3"
           style={{ borderTop: "1px solid hsl(var(--sidebar-border))" }}
         >
-          {loading ? (
-            <div
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 animate-pulse",
-                collapsed && "lg:justify-center lg:px-2"
-              )}
-              style={{ background: "hsl(var(--sidebar-hover-bg))" }}
-            >
-              <div className="h-7 w-7 rounded-full bg-muted/20" />
-              {!collapsed && (
-                <div className="flex flex-col gap-2 flex-1">
-                  <div className="h-3 w-20 rounded bg-muted/20" />
-                  <div className="h-2 w-12 rounded bg-muted/20" />
-                </div>
-              )}
-            </div>
-          ) : (
+          {(
             <div
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5",

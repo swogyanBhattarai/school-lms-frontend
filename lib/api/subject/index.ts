@@ -1,9 +1,11 @@
-﻿import api from "@/lib/api";
+import api from "@/lib/api";
 import type {
   SubjectResponse,
   SubjectCreate,
   SubjectModel,
   SubjectUpdate,
+  SubjectAttendanceResponse,
+  SubjectDiaryResponse,
 } from "@/types/lms";
 
 /**
@@ -17,8 +19,38 @@ export const getAllSubjects = async (): Promise<SubjectResponse[]> => {
 /**
  * Fetch a single subject by ID
  */
-export const getSubjectById = async (id: number): Promise<SubjectModel> => {
-  const response = await api.get<SubjectModel>(`/api/subject/${id}`);
+export const getSubjectById = async (id: number): Promise<SubjectResponse> => {
+  const response = await api.get<SubjectResponse>(`/api/subject/${id}`);
+  return response.data;
+};
+
+/**
+ * Fetch attendance stats for a subject on a given date
+ */
+export const getSubjectAttendanceStats = async (
+  subjectId: number,
+  attendanceDate: string,
+  classId?: number
+): Promise<SubjectAttendanceResponse[]> => {
+  const response = await api.get<SubjectAttendanceResponse[]>(
+    "/api/subject/admin/attendance-stats",
+    { params: { subjectId, attendanceDate, ...(classId ? { classId } : {}) } }
+  );
+  return response.data;
+};
+
+/**
+ * Fetch diary stats for a subject on a given date
+ */
+export const getSubjectDiaryStats = async (
+  subjectId: number,
+  attendanceDate: string,
+  classId?: number
+): Promise<SubjectDiaryResponse[]> => {
+  const response = await api.get<SubjectDiaryResponse[]>(
+    "/api/subject/admin/diary-stats",
+    { params: { subjectId, attendanceDate, ...(classId ? { classId } : {}) } }
+  );
   return response.data;
 };
 

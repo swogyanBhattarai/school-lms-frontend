@@ -5,6 +5,7 @@ import type {
   TeacherCreate,
   TeacherUpdate,
   TeacherModel,
+  TeacherInfo,
 } from "@/types/lms";
 
 /**
@@ -44,6 +45,14 @@ export const updateTeacher = async (id: number, payload: TeacherUpdate): Promise
  */
 export const deleteTeacher = async (id: number): Promise<void> => {
   await api.delete(`/api/teacher/${id}`);
+};
+
+/**
+ * Fetch teacher info by ID (name and phone)
+ */
+export const getTeacherInfoById = async (id: number): Promise<TeacherInfo> => {
+  const response = await api.get<TeacherInfo>(`/api/teacher/info/${id}`);
+  return response.data;
 };
 
 /**

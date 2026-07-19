@@ -28,7 +28,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/app/_components/ui/dialog";
 import { cn, getApiErrorMessage } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
@@ -36,8 +35,8 @@ import { useToast } from "@/app/_components/ui/use-toast";
 import { getStudents } from "@/lib/api/student";
 import { getSectionById } from "@/lib/api/section";
 import {
-  createMassAttendance,
-  getAttendanceBySectionAndSubject,
+  createMassAttendanceByTeacher,
+  getAttendanceBySectionAndSubjectAndTeacher,
 } from "@/lib/api/attendance";
 import type {
   AttendanceResponse,
@@ -96,7 +95,7 @@ interface StudentState {
   status: AttendanceStatus | "UNMARKED";
 }
 
-export default function AttendancePageClient() {
+export default function AdminAttendancePageClient() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -104,6 +103,7 @@ export default function AttendancePageClient() {
 
   const sectionId = parseInt(params.sectionId as string);
   const subjectId = parseInt(searchParams?.get("subjectId") || "0");
+  const teacherId = parseInt(searchParams?.get("teacherId") || "0");
 
   const [search, setSearch] = useState("");
   const [studentStates, setStudentStates] = useState<StudentState[]>([]);
@@ -132,10 +132,13 @@ export default function AttendancePageClient() {
     enabled: !!sectionId,
   });
 
+  const attendanceDate = searchParams?.get("attendanceDate") || undefined;
+
   const { data: attendanceResponse, isSuccess: isAttendanceLoaded } = useQuery({
-    queryKey: ["attendance", { sectionId, subjectId }],
-    queryFn: () => getAttendanceBySectionAndSubject(sectionId, subjectId),
-    enabled: !!sectionId && !!subjectId,
+    queryKey: ["admin-attendance", { sectionId, subjectId, teacherId, attendanceDate }],
+    queryFn: () =>
+      getAttendanceBySectionAndSubjectAndTeacher(sectionId, subjectId, teacherId, attendanceDate),
+    enabled: !!sectionId && !!subjectId && !!teacherId,
   });
 
   // Initialize student states when data arrives
@@ -164,13 +167,13 @@ export default function AttendancePageClient() {
   // Mass Attendance Mutation
   const attendanceMutation = useMutation({
     mutationFn: (payload: MassAttendance) =>
-      createMassAttendance(sectionId, subjectId, payload),
+      createMassAttendanceByTeacher(sectionId, subjectId, teacherId, payload),
     onSuccess: () => {
       toast({
         title: "Attendance Saved",
         description: "Attendance records have been successfully saved.",
       });
-      router.push("/teacher");
+      router.push(`/admin/teachers/${teacherId}`);
     },
     onError: (error: unknown) => {
       toast({
@@ -222,6 +225,7 @@ export default function AttendancePageClient() {
   };
 
   const handleSave = () => {
+    // Check if there are any unmarked students
     if (stats.unmarked > 0) {
       toast({
         variant: "destructive",
@@ -248,12 +252,19 @@ export default function AttendancePageClient() {
     setShowConfirmDialog(false);
   };
 
-  const today = new Date().toLocaleDateString("en-NP", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  const displayDate = attendanceDate
+    ? new Date(attendanceDate).toLocaleDateString("en-NP", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : new Date().toLocaleDateString("en-NP", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
 
   // Filter out UNMARKED from the card buttons
   const selectableStatuses = (Object.keys(STATUS_CONFIG) as Array<keyof typeof STATUS_CONFIG>)
@@ -278,153 +289,162 @@ export default function AttendancePageClient() {
             </h1>
             <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5">
               <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-              {today}
+              {displayDate}
             </p>
           </div>
         </div>
 
-        {/* Section Info Card */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
-          <div className="md:col-span-2 relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm h-full">
-            <div className="absolute right-0 top-0 h-full w-24 sm:w-32 bg-gradient-to-l from-blue-50/50 to-transparent pointer-events-none" />
-            <div className="flex flex-col h-full">
-            <div className="flex items-start gap-3 sm:gap-4">
-              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 flex-shrink-0">
-                <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
-              </div>
-              <div className="space-y-0.5 sm:space-y-1 min-w-0">
-                <h2 className="text-base sm:text-xl font-bold truncate">
-                  Grade {section?.grade} - {section?.sectionName}
-                </h2>
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
-                    {stats.total} Students
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-auto pt-4 sm:pt-6 flex flex-wrap items-center gap-1.5 sm:gap-2">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground mr-1 sm:mr-2">
-                Quick Mark All:
-              </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => markAll("PRESENT")}
-                disabled={isAttendanceLocked}
-                className={cn(
-                  "rounded-xl border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-emerald-600 font-medium text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
-                )}
-              >
-                <CheckCircle2 className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
-                All Present
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => markAll("ABSENT")}
-                disabled={isAttendanceLocked}
-                className={cn(
-                  "rounded-xl border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-red-600 font-medium text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
-                )}
-              >
-                <XCircle className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
-                All Absent
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => markAll("LEAVE")}
-                disabled={isAttendanceLocked}
-                className={cn(
-                  "rounded-xl border-amber-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 text-amber-600 font-medium text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
-                )}
-              >
-                <Clock className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
-                All Leave
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={resetAll}
-                disabled={isAttendanceLocked}
-                className={cn(
-                  "rounded-xl text-slate-500 text-xs h-8",
-                  isAttendanceLocked && "opacity-60 cursor-not-allowed",
-                )}
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
-                Reset
-              </Button>
-            </div>
-          </div>
-          </div>
-
-          {/* Stats Summary Card */}
-          <div className="rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-            <h3 className="text-xs sm:text-sm font-bold mb-2 sm:mb-3">
-              Live Summary
-            </h3>
-            <div className="space-y-2 sm:space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">
-                  Present
-                </span>
-                <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                  {stats.present}
-                </span>
-              </div>
-              <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-emerald-500 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${(stats.present / (stats.total || 1)) * 100}%`,
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">
-                  Absent
-                </span>
-                <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
-                  {stats.absent}
-                </span>
-              </div>
-              <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-red-500 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${(stats.absent / (stats.total || 1)) * 100}%`,
-                  }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] sm:text-xs text-muted-foreground">
-                  Leave
-                </span>
-                <span className="text-[10px] sm:text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                  {stats.leave}
-                </span>
-              </div>
-              <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-amber-500 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${(stats.leave / (stats.total || 1)) * 100}%`,
-                  }}
-                />
-              </div>
-
-            </div>
+        {/* Section Info Card - Refactored */}
+<div className="grid grid-cols-1 lg:grid-cols-5 gap-3 sm:gap-6">
+  {/* Main Info Card - Takes 3 columns on desktop */}
+  <div className="lg:col-span-3 relative overflow-hidden rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-6 shadow-sm h-full">
+    <div className="absolute right-0 top-0 h-full w-24 sm:w-32 bg-gradient-to-l from-blue-50/50 to-transparent pointer-events-none" />
+    <div className="flex flex-col h-full">
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl sm:rounded-2xl bg-blue-600 text-white shadow-lg shadow-blue-200 flex-shrink-0">
+          <BookOpen className="h-5 w-5 sm:h-6 sm:w-6" />
+        </div>
+        <div className="space-y-0.5 sm:space-y-1 min-w-0">
+          <h2 className="text-base sm:text-xl font-bold truncate">
+            Grade {section?.grade} - {section?.sectionName}
+          </h2>
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+              {stats.total} Students
+            </span>
+            <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+            <span className="flex items-center gap-1.5">
+              Teacher ID: {teacherId}
+            </span>
           </div>
         </div>
+      </div>
+
+      {/* Quick Actions - pushed to bottom */}
+      <div className="mt-auto pt-4 sm:pt-6 flex flex-wrap items-start gap-1.5 sm:gap-2">
+        <p className="text-xs sm:text-sm font-medium text-muted-foreground w-full sm:w-auto mr-1 sm:mr-2 pt-1">
+          Quick Mark All:
+        </p>
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => markAll("PRESENT")}
+            disabled={isAttendanceLocked}
+            className={cn(
+              "rounded-xl border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-emerald-600 font-medium text-xs h-8",
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
+            )}
+          >
+            <CheckCircle2 className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
+            All Present
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => markAll("ABSENT")}
+            disabled={isAttendanceLocked}
+            className={cn(
+              "rounded-xl border-red-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300 text-red-600 font-medium text-xs h-8",
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
+            )}
+          >
+            <XCircle className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
+            All Absent
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => markAll("LEAVE")}
+            disabled={isAttendanceLocked}
+            className={cn(
+              "rounded-xl border-amber-200 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300 text-amber-600 font-medium text-xs h-8",
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
+            )}
+          >
+            <Clock className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
+            All Leave
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={resetAll}
+            disabled={isAttendanceLocked}
+            className={cn(
+              "rounded-xl text-slate-500 text-xs h-8",
+              isAttendanceLocked && "opacity-60 cursor-not-allowed",
+            )}
+          >
+            <RotateCcw className="h-3.5 w-3.5 mr-1 sm:mr-1.5" />
+            Reset
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* Stats Summary Card - Takes 2 columns on desktop */}
+  <div className="lg:col-span-2 rounded-2xl sm:rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+    <h3 className="text-xs sm:text-sm font-bold mb-2 sm:mb-3">
+      Live Summary
+    </h3>
+    <div className="space-y-2 sm:space-y-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] sm:text-xs text-muted-foreground">
+          Present
+        </span>
+        <span className="text-[10px] sm:text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+          {stats.present}
+        </span>
+      </div>
+      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+          style={{
+            width: `${(stats.present / (stats.total || 1)) * 100}%`,
+          }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] sm:text-xs text-muted-foreground">
+          Absent
+        </span>
+        <span className="text-[10px] sm:text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+          {stats.absent}
+        </span>
+      </div>
+      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-red-500 rounded-full transition-all duration-300"
+          style={{
+            width: `${(stats.absent / (stats.total || 1)) * 100}%`,
+          }}
+        />
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] sm:text-xs text-muted-foreground">
+          Leave
+        </span>
+        <span className="text-[10px] sm:text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+          {stats.leave}
+        </span>
+      </div>
+      <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-amber-500 rounded-full transition-all duration-300"
+          style={{
+            width: `${(stats.leave / (stats.total || 1)) * 100}%`,
+          }}
+        />
+      </div>
+
+
+    </div>
+  </div>
+</div>
       </div>
 
       {/* Toolbar */}
@@ -521,13 +541,13 @@ export default function AttendancePageClient() {
                 <div
                   className={cn(
                     "flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-lg sm:rounded-xl font-bold shadow-sm flex-shrink-0",
-                      student.status === "PRESENT"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : student.status === "ABSENT"
-                          ? "bg-red-100 text-red-700"
-                          : student.status === "LEAVE"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-slate-100 text-slate-400",
+                    student.status === "PRESENT"
+                      ? "bg-emerald-100 text-emerald-700"
+                      : student.status === "ABSENT"
+                        ? "bg-red-100 text-red-700"
+                        : student.status === "LEAVE"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-400",
                   )}
                 >
                   {student.studentName.charAt(0).toUpperCase()}
@@ -675,7 +695,7 @@ export default function AttendancePageClient() {
               </DialogTitle>
               <DialogDescription className="text-xs sm:text-sm pt-1 sm:pt-2">
                 You are about to submit the attendance for{" "}
-                <span className="font-bold text-slate-900">{today}</span>.
+                <span className="font-bold text-slate-900">{displayDate}</span>.
                 Please review the summary below.
               </DialogDescription>
             </DialogHeader>

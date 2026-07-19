@@ -100,10 +100,15 @@ export type SchoolClassCreate = {
   academicYearId: number;
 };
 
+export type ClassSectionResponse = {
+  sectionId: number;
+  sectionName: string;
+};
+
 export type SchoolClassResponse = {
   schoolClassId: number;
   grade: string;
-  sectionNames: string[];
+  sections: ClassSectionResponse[];
 };
 
 export type SchoolClassUpdate = {
@@ -266,6 +271,16 @@ export interface TeacherCreate {
   teacherPhoneNumber: string;
 }
 
+export interface TeacherInfo {
+  teacherId: number;
+  teacherName: string;
+  teacherPhoneNumber: string;
+  totalStudents: number;
+  loginUsername?: string;
+  loginPassword?: string;
+  teacherAddress?: string;
+}
+
 export interface TeacherUpdate {
   teacherName: string;
   teacherPhoneNumber: string;
@@ -275,7 +290,6 @@ export interface TeacherUpdate {
 export interface SubjectResponse {
   subjectId: number;
   subjectName: string;
-  isActive: boolean;
 }
 
 export interface SubjectCreate {
@@ -284,6 +298,33 @@ export interface SubjectCreate {
 
 export interface SubjectUpdate {
   subjectName: string;
+}
+
+export interface SubjectAttendanceResponse {
+  subjectId: number;
+  sectionId: number;
+  sectionName: string;
+  grade: string;
+  teacherId: number;
+  teacherName: string;
+  totalStudents: number;
+  presentStudents: number;
+  absentStudents: number;
+  leaveStudents: number;
+  attendanceCompleted: boolean;
+}
+
+export interface SubjectDiaryResponse {
+  subjectId: number;
+  sectionId: number;
+  sectionName: string;
+  grade: string;
+  teacherId: number;
+  teacherName: string;
+  diaryId: number;
+  diaryDate: string;
+  title: string;
+  content: string;
 }
 
 export declare type SubjectModel = {
@@ -488,6 +529,16 @@ export interface UserResponseDTO {
   schoolId: number;
 }
 
+export interface TeacherUser {
+  teacherId: number;
+  teacherUsername: string;
+}
+
+export interface UserUpdateDTO {
+  username: string;
+  password: string | null;
+}
+
 // --- Auth DTOs ---
 export interface CurrentUserInfoResponse {
   username: string;
@@ -537,5 +588,117 @@ export interface StudentFeeResponse {
   academicYear: string;
 }
 
+// --- Admin Fee Dashboard DTOs ---
+export interface FeeStatResponse {
+  totalNeeded: number;
+  totalCollected: number;
+  totalOverdue: number;
+  overdueCount: number;
+  totalStudents: number;
+  paidStudents: number;
+  unpaidStudents: number;
+  partialStudents: number;
+  overdueStudents: number;
+}
 
+export interface ClassFeeStat {
+  classId: number;
+  grade: string;
+  totalStudents: number;
+  expectedAmount: number;
+  collectedAmount: number;
+  overdueAmount: number;
+}
+
+export interface SectionFeeStat {
+  classId: number;
+  sectionId: number;
+  sectionName: string;
+  totalStudents: number;
+  expectedAmount: number;
+  collectedAmount: number;
+  overdueAmount: number;
+}
+
+export interface SummaryFeeStats {
+  classId: number;
+  grade: string;
+  totalStudents: number;
+  expectedAmount: number;
+  collectedAmount: number;
+  overdueAmount: number;
+  sectionFeeStats: SectionFeeStat[];
+}
+
+export interface FeeStats {
+  totalExpected: number;
+  totalCollected: number;
+  totalPending: number;
+  totalOverdue: number;
+  collectionRate: number;
+  overdueCount: number;
+  totalStudents: number;
+  paidStudents: number;
+  unpaidStudents: number;
+  partialStudents: number;
+  pendingStudents: number;
+  overdueStudents: number;
+}
+
+export interface SectionCollection {
+  sectionId: number;
+  sectionName: string;
+  totalStudents: number;
+  totalExpected: number;
+  totalCollected: number;
+  overdueAmount: number;
+  collectionRate: number;
+}
+
+export interface ClassCollection {
+  classId: number;
+  className: string;
+  grade: string;
+  totalStudents: number;
+  totalExpected: number;
+  totalCollected: number;
+  pendingAmount: number;
+  overdueAmount: number;
+  collectionRate: number;
+  sections: SectionCollection[];
+}
+
+export interface OverdueStudentResponse {
+  studentId: number;
+  studentName: string;
+  grade: string;
+  sectionName: string;
+  overdueAmount: number;
+  remainingAmount: number;
+  overduePaid: number;
+  dueDate: string;
+  feeType: FeeTypes;
+}
+
+export interface FeeTypeBreakdown {
+  feeType: string;
+  feeTypeLabel: string;
+  totalAmount: number;
+  collectedAmount: number;
+  pendingAmount: number;
+  studentCount: number;
+  color: string;
+}
+
+// Backend DTO: FeeTypeStatResponse
+export interface FeeTypeStatResponse {
+  feeType: FeeTypes;
+  totalStudents: number;
+  expectedAmount: number;
+  collectedAmount: number;
+  remainingAmount: number;
+  unpaidAmount: number;
+  partialAmount: number;
+  overdueAmount: number;
+}
 

@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Filter,
   BookMarked,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Badge } from "@/app/_components/ui/badge";
@@ -37,8 +38,8 @@ import { getStudentAttendanceSummary, getStudentDailyAttendance } from "@/lib/ap
 import { getClassAssignmentsBySection } from "@/lib/api/classAssignment";
 import type { ClassAssignmentResponse, DiaryResponse } from "@/types/lms";
 import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
-import { convertADToBS, getTodayADString } from "@/lib/nepali-calendar";
-import { TeacherStudentDetailSkeleton } from "@/app/_components/skeletons/TeacherStudentDetailSkeleton";
+import { MonthYearNavigator } from "@/app/_components/YearMonthNavigator";
+import { convertADToBS, getTodayADString, getTodayBS, getBSMonthDays, convertBSToAD } from "@/lib/nepali-calendar";
 import { findAllFiltered } from "@/lib/api/diary";
 
 interface Subject {
@@ -101,7 +102,9 @@ export default function TeacherStudentDetailPageClient() {
   const params = useParams();
   const studentId = Number(params.studentId);
 
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const todayBS = getTodayBS();
+  const [selectedNavYear, setSelectedNavYear] = useState<number>(todayBS.year);
+  const [selectedNavMonth, setSelectedNavMonth] = useState<number>(todayBS.month);
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
   const [attendanceDate, setAttendanceDate] = useState<string>(getTodayADString());
   const [diaryDate, setDiaryDate] = useState<string>(getTodayADString());
@@ -122,16 +125,16 @@ export default function TeacherStudentDetailPageClient() {
 
   // Calculate date range from selected month
   const dateRange = useMemo(() => {
-    if (selectedMonth === "all") return { fromDate: undefined, toDate: undefined };
-    
-    const [year, month] = selectedMonth.split("-").map(Number);
-    const lastDay = new Date(year, month, 0).getDate();
-    
+    const daysInMonth = getBSMonthDays(selectedNavYear, selectedNavMonth);
+    const fromAD = convertBSToAD(selectedNavYear, selectedNavMonth, 1);
+    const toAD = convertBSToAD(selectedNavYear, selectedNavMonth, daysInMonth);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return {
-      fromDate: `${year}-${String(month).padStart(2, '0')}-01`,
-      toDate: `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+      fromDate: fmt(fromAD),
+      toDate: fmt(toAD),
     };
-  }, [selectedMonth]);
+  }, [selectedNavYear, selectedNavMonth]);
 
   const {
     data: attendanceSummary = [],
@@ -279,19 +282,6 @@ export default function TeacherStudentDetailPageClient() {
     });
   }, [attendanceSummary, subjectOptions]);
 
-  // Generate month options from attendance data
-  const monthOptions = useMemo(() => {
-    const options: string[] = [];
-    const now = new Date();
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      options.push(`${year}-${month}`);
-    }
-    return options;
-  }, []);
-
   const filteredAssignments: Assignment[] = useMemo(() => {
     return classAssignments.map(ca => ({
       assignmentId: ca.classAssignmentId,
@@ -410,16 +400,6 @@ export default function TeacherStudentDetailPageClient() {
                       </div>
                     </div>
                   ))}
-                  {isStudentLoading && (
-                    <div className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-slate-200 animate-pulse" />
-                      <div className="min-w-0 space-y-2">
-                        <div className="h-2 w-20 bg-slate-200 rounded" />
-                        <div className="h-3 w-28 bg-slate-200 rounded" />
-                        <div className="h-2 w-24 bg-slate-200 rounded" />
-                      </div>
-                    </div>
-                  )}
                   {isStudentError && (
                     <div className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-red-50 border border-red-100">
                       <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
@@ -540,35 +520,32 @@ export default function TeacherStudentDetailPageClient() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="w-[140px] sm:w-[160px] h-9 sm:h-10 rounded-xl bg-white border-slate-200 font-semibold text-slate-700 text-xs sm:text-sm">
-                    <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                    <SelectValue placeholder="All Months" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="all">All Months</SelectItem>
-                    {monthOptions.map(month => (
-                      <SelectItem key={month} value={month}>
-                        {new Date(month + "-01").toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <MonthYearNavigator
+                  value={{ year: selectedNavYear, month: selectedNavMonth }}
+                  onChange={(year, month) => {
+                    setSelectedNavYear(year);
+                    setSelectedNavMonth(month);
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const bs = getTodayBS();
+                    setSelectedNavYear(bs.year);
+                    setSelectedNavMonth(bs.month);
+                  }}
+                  className="shrink-0 gap-1.5 rounded-xl text-xs sm:text-sm h-9 sm:h-10"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Reset</span>
+                </Button>
               </div>
             </div>
           </div>
           
           <div className="p-4 sm:p-6">
-            {isAttendanceSummaryLoading ? (
-              <div className="grid lg:grid-cols-12 gap-6 sm:gap-8 animate-pulse">
-                <div className="lg:col-span-5 h-64 bg-muted rounded-xl" />
-                <div className="lg:col-span-7 space-y-4">
-                  {[...Array(4)].map((_, i) => (
-                    <div key={i} className="h-12 bg-muted rounded-xl" />
-                  ))}
-                </div>
-              </div>
-            ) : !hasAttendanceData ? (
+            {!hasAttendanceData ? (
               <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
                 <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <PieChart className="h-6 w-6 sm:h-8 sm:w-8 text-slate-300" />
@@ -678,21 +655,26 @@ export default function TeacherStudentDetailPageClient() {
                 <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Daily Attendance Record</h3>
                 <p className="text-xs sm:text-sm font-semibold text-slate-500">Subject-wise presence tracking</p>
               </div>
-              <MiniCalendar
-                value={attendanceDateBS}
-                onChange={setAttendanceDate}
-                className="w-full sm:w-[200px]"
-              />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <MiniCalendar
+                  value={attendanceDateBS}
+                  onChange={setAttendanceDate}
+                  className="flex-1 sm:w-[200px]"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAttendanceDate(getTodayADString())}
+                  className="shrink-0 gap-1.5 rounded-xl text-xs h-9"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Today
+                </Button>
+              </div>
             </div>
           </div>
           <div className="p-4 sm:p-6">
-            {isClassAssignmentsLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 animate-pulse">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-32 bg-muted rounded-xl" />
-                ))}
-              </div>
-            ) : isClassAssignmentsError ? (
+            {isClassAssignmentsError ? (
               <div className="text-center py-8 sm:py-10 rounded-xl sm:rounded-2xl bg-red-50 border-2 border-dashed border-red-200">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 text-red-400" />
@@ -741,21 +723,26 @@ export default function TeacherStudentDetailPageClient() {
                 <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Diary & Assignments</h3>
                 <p className="text-xs sm:text-sm font-semibold text-slate-500">Track classwork and homework</p>
               </div>
-              <MiniCalendar
-                value={diaryDateBS}
-                onChange={setDiaryDate}
-                className="w-full sm:w-[200px]"
-              />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <MiniCalendar
+                  value={diaryDateBS}
+                  onChange={setDiaryDate}
+                  className="flex-1 sm:w-[200px]"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDiaryDate(getTodayADString())}
+                  className="shrink-0 gap-1.5 rounded-xl text-xs h-9"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Today
+                </Button>
+              </div>
             </div>
           </div>
           <div className="p-4 sm:p-6">
-            {diaryLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 animate-pulse">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-40 bg-muted rounded-xl" />
-                ))}
-              </div>
-            ) : diaryEntries.length === 0 ? (
+            {diaryEntries.length === 0 ? (
               <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
                 <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <BookMarked className="h-6 w-6 sm:h-8 sm:w-8 text-slate-300" />

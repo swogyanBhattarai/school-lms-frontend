@@ -27,6 +27,11 @@ import {
   History,
   BookMarked,
   RotateCcw,
+  Search,
+  LayoutGrid,
+  List,
+  MapPin,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Badge } from "@/app/_components/ui/badge";
@@ -37,25 +42,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/_components/ui/select";
+import { Input } from "@/app/_components/ui/input";
+import { Label } from "@/app/_components/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/app/_components/ui/dialog";
+import { DeleteConfirmationDialog } from "@/app/_components/DeleteConfirmationDialog";
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/app/_components/ui/alert-dialog";
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/app/_components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import AnimatedPieChart from "@/app/_components/AnimatedPieChart";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -103,7 +108,6 @@ import {
 import { findAllFiltered } from "@/lib/api/diary";
 import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
 import { MonthYearNavigator } from "@/app/_components/YearMonthNavigator";
-import { StudentDetailSkeleton } from "@/app/_components/skeletons/StudentDetailSkeleton";
 import {
   convertADToBS,
   getTodayADString,
@@ -132,7 +136,7 @@ type TabType =
 function AttendanceStatusBadge({ status }: { status: string | undefined }) {
   if (!status)
     return (
-      <Badge className="text-[9px] uppercase font-bold text-slate-400 border-slate-200 px-2 py-0.5">
+      <Badge className="text-[9px] uppercase font-bold text-slate-400 border-slate-200 px-2 py-0.5 bg-slate-50">
         Not Taken
       </Badge>
     );
@@ -355,11 +359,24 @@ function PaymentTypeBadge({ type }: { type: PaymentType }) {
 export default function StudentDetailPageClient() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const studentId = Number(params.studentId);
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<TabType>("overview");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tabParam = searchParams?.get("tab");
+    const validTabs: TabType[] = [
+      "overview",
+      "parents",
+      "academic",
+      "attendance",
+      "fees",
+      "documents",
+    ];
+    return tabParam && validTabs.includes(tabParam as TabType)
+      ? (tabParam as TabType)
+      : "overview";
+  });
 
   const todayBS = getTodayBS();
   const [selectedNavYear, setSelectedNavYear] = useState<number>(todayBS.year);
@@ -644,7 +661,7 @@ export default function StudentDetailPageClient() {
           : undefined,
         feeFilter === "ALL" ? undefined : feeFilter,
       ),
-    enabled: Number.isFinite(studentId),
+    enabled: Number.isFinite(studentId) && selectedFeeAcademicYearId !== null,
   });
 
   const { data: academicYears = [] } = useQuery({
@@ -656,10 +673,8 @@ export default function StudentDetailPageClient() {
   useEffect(() => {
     if (selectedFeeAcademicYearId === null && academicYears.length > 0) {
       const active = academicYears.find((ay) => ay.isActive);
-      if (active) {
-        setSelectedFeeAcademicYearId(active.academicYearId);
-        setDefaultFeeYearId(active.academicYearId);
-      }
+      setSelectedFeeAcademicYearId(active?.academicYearId ?? -1);
+      setDefaultFeeYearId(active?.academicYearId ?? null);
     }
   }, [academicYears, selectedFeeAcademicYearId]);
 
@@ -1146,310 +1161,368 @@ export default function StudentDetailPageClient() {
     deleteFeePayment(paymentId);
   };
 
-  const tabs = [
-    { id: "overview" as TabType, label: "Overview", icon: Eye },
-    { id: "parents" as TabType, label: "Parents", icon: Users },
-    { id: "academic" as TabType, label: "Academic", icon: GraduationCap },
-    { id: "attendance" as TabType, label: "Attendance", icon: Calendar },
-    { id: "fees" as TabType, label: "Fees", icon:  NepaliRupee },
-    { id: "documents" as TabType, label: "Documents", icon: FileText },
-  ];
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied!",
+        description: `${label} copied to clipboard.`,
+      });
+    });
+  };
+
+  const todayLabel = (() => {
+    const d = new Date();
+    return d.toLocaleDateString("en-NP", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  })();
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-4 sm:space-y-6">
-        {/* Top Bar */}
-        <div className="flex items-center justify-between pt-4 sm:pt-6">
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1 sm:gap-2 -ml-2 text-slate-500 hover:text-slate-900 font-medium text-sm"
-              onClick={() => router.back()}
-            >
-              <ChevronRight className="h-4 w-4 rotate-180" />
-              <span className="hidden sm:inline">Back to Students</span>
-              <span className="sm:hidden">Back</span>
-            </Button>
+    <div className="min-h-screen">
+      <div className="max-w-7xl mx-auto flex flex-col gap-4 sm:gap-6 px-1 sm:px-0">
+        {/* Header Section */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 pt-2 sm:pt-0">
+          <div className="space-y-0.5 sm:space-y-1">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => router.back()}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronRight className="h-5 w-5 rotate-180" />
+              </button>
+              <h1 className="text-xl sm:text-3xl font-bold tracking-tight">
+                Student Details
+              </h1>
+            </div>
+            <p className="text-xs sm:text-sm text-muted-foreground ml-7">
+              {studentData?.schoolClassName
+                ? `Class ${studentData.schoolClassName} • Section ${studentData.sectionName}`
+                : "Student Information"}{" "}
+              &bull; {todayLabel}
+            </p>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden sm:flex items-center gap-2 ml-7 sm:ml-0">
             <Button
               variant="outline"
               size="sm"
-              className="gap-1 sm:gap-2 rounded-xl border-slate-200 text-xs sm:text-sm"
-              onClick={() => {
-                /* Export action */
-              }}
-            >
-              <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Export Report</span>
-              <span className="sm:hidden">Export</span>
-            </Button>
-            <Button
-              size="sm"
-              className="gap-1 sm:gap-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs sm:text-sm"
               onClick={startEditStudent}
+              className="h-9 rounded-xl text-xs sm:text-sm"
             >
-              <Pencil className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Edit Profile</span>
-              <span className="sm:hidden">Edit</span>
+              <Pencil className="h-3.5 w-3.5 mr-1.5" />
+              Edit Profile
             </Button>
           </div>
         </div>
 
-        {/* Student Header Card */}
+        {/* Student Profile Card */}
         <div className="relative">
-          <div className="absolute inset-0 bg-slate-100 rounded-[1.5rem] sm:rounded-[2rem]" />
-          <div className="relative rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-6 md:p-8 text-slate-900">
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 md:gap-8 items-start">
-              <div className="relative group mx-auto sm:mx-0">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-xl sm:rounded-2xl bg-white/80 backdrop-blur-sm flex items-center justify-center ring-4 ring-white/60 transition-transform group-hover:scale-105 duration-300">
-                  <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-800">
-                    {studentInitials || "ST"}
-                  </span>
-                </div>
-                <div className="absolute -bottom-2 -right-2 w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-lg sm:rounded-xl bg-emerald-500 border-[3px] sm:border-4 border-white flex items-center justify-center shadow-lg">
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5 text-white" />
-                </div>
-              </div>
-
-              <div className="flex-1 text-center sm:text-left w-full">
-                <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between flex-wrap gap-3 sm:gap-4">
-                  <div className="w-full">
-                    {isEditingStudent ? (
-                      <div className="space-y-3">
-                        <input
-                          type="text"
+          <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 via-purple-500/5 to-fuchsia-500/5 rounded-2xl sm:rounded-3xl" />
+          <div className="relative rounded-2xl sm:rounded-3xl border border-slate-200/80 bg-white/60 backdrop-blur-sm overflow-hidden">
+            {/* Profile Content */}
+            <div className="p-4 sm:p-6">
+              {isEditingStudent ? (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-semibold text-sm">Edit Profile</h3>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        onClick={handleUpdateStudent}
+                        className="h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs"
+                      >
+                        <Save className="h-3.5 w-3.5 mr-1" />
+                        Save
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingStudent(false);
+                          setEditedStudentName(studentData?.studentName || "");
+                          setEditedDOB(studentData?.dateOfBirth || "");
+                        }}
+                        className="h-8 rounded-lg text-xs"
+                      >
+                        <X className="h-3.5 w-3.5 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
                           value={editedStudentName}
                           onChange={(e) => setEditedStudentName(e.target.value)}
-                          className="text-xl sm:text-2xl md:text-3xl font-bold bg-white/80 rounded-xl px-4 py-2 text-slate-900 placeholder-slate-400 border border-slate-200 w-full"
-                          placeholder="Student Name"
+                          placeholder="Student name"
+                          className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg"
                         />
-                        <MiniCalendar
-                          value={
-                            editedDOB
-                              ? convertADToBS(new Date(editedDOB))
-                              : undefined
-                          }
-                          onChange={(isoString) => setEditedDOB(isoString)}
-                          placeholder="Select date of birth"
-                          className="bg-white/80 rounded-xl border-slate-200 w-full sm:w-auto"
-                        />
-                        <div className="flex gap-2 justify-center sm:justify-start">
-                          <Button
-                            size="sm"
-                            onClick={handleUpdateStudent}
-                            className="rounded-xl bg-emerald-500 hover:bg-emerald-600 text-xs sm:text-sm"
-                          >
-                            <Save className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                            Save
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setIsEditingStudent(false)}
-                            className="rounded-xl border-slate-200 text-slate-700 hover:bg-white text-xs sm:text-sm"
-                          >
-                            <X className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                            Cancel
-                          </Button>
-                        </div>
                       </div>
-                    ) : (
-                      <>
-                        <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
-                          {studentName}
-                        </h2>
-                        <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-3 mt-2 text-xs sm:text-sm text-slate-600">
-                          {isStudentActive && (
-                            <span className="flex items-center gap-1.5 font-semibold px-2 sm:px-2.5 py-1 bg-white/80 rounded-lg">
-                              <GraduationCap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                              <span className="whitespace-nowrap">
-                                Class {studentData?.schoolClassName} • Section{" "}
-                                {studentData?.sectionName}
-                              </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Date of Birth</Label>
+                      <MiniCalendar
+                        value={
+                          editedDOB
+                            ? convertADToBS(new Date(editedDOB))
+                            : undefined
+                        }
+                        onChange={(isoString) => setEditedDOB(isoString)}
+                        placeholder="Select date of birth"
+                        className="bg-white rounded-lg border-slate-200 w-full h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-4 sm:gap-6">
+                  <div className="flex flex-col items-center sm:flex-row gap-4 sm:gap-6 sm:items-center flex-1">
+                    <div className="relative">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center ring-4 ring-violet-100">
+                        <span className="text-xl sm:text-2xl font-bold text-white">
+                          {studentInitials || "ST"}
+                        </span>
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-emerald-500 border-2 border-white flex items-center justify-center">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      <h2 className="text-lg sm:text-xl font-bold">
+                        {studentName}
+                      </h2>
+                      <div className="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-3 mt-1.5 text-xs sm:text-sm text-muted-foreground">
+                        {isStudentActive && (
+                          <span className="flex items-center gap-1.5">
+                            <GraduationCap className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span className="whitespace-nowrap">
+                              Class {studentData?.schoolClassName} • Section{" "}
+                              {studentData?.sectionName}
                             </span>
-                          )}
-                          <span className="hidden sm:inline w-1.5 h-1.5 rounded-full bg-slate-300" />
-                          <span className="font-semibold text-xs sm:text-sm">
+                          </span>
+                        )}
+                        <span className="flex items-center gap-1.5">
+                          <span className="font-semibold">
                             ID: #{String(studentId).padStart(5, "0")}
                           </span>
-                          <span className="hidden sm:inline w-1.5 h-1.5 rounded-full bg-slate-300" />
-                          <span className="font-semibold text-xs sm:text-sm">
-                            DOB:{" "}
-                            {studentData?.dateOfBirth
-                              ? formatDate(studentData.dateOfBirth)
-                              : "-"}
+                        </span>
+                        {studentData?.dateOfBirth && (
+                          <span className="flex items-center gap-1.5">
+                            <span className="font-semibold">
+                              DOB: {formatDate(studentData.dateOfBirth)}
+                            </span>
                           </span>
-                        </div>
-                      </>
-                    )}
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <Badge
-                    className={cn(
-                      "h-7 sm:h-8 px-3 sm:px-4 text-xs sm:text-sm font-bold rounded-full",
-                      isStudentActive
-                        ? "bg-emerald-100 text-emerald-700 border-emerald-200"
-                        : "bg-amber-100 text-amber-700 border-amber-200",
-                    )}
-                  >
-                    {isStudentActive ? "Active Student" : "Inactive Student"}
-                  </Badge>
+                  <div className="flex items-center justify-center sm:justify-end pt-3 sm:pt-0 border-t sm:border-t-0 sm:border-l border-slate-200 sm:pl-8">
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex flex-col items-center">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium mb-1.5">
+                          Status
+                        </p>
+                        <Badge
+                          className={cn(
+                            "text-xs font-bold",
+                            isStudentActive
+                              ? "bg-emerald-100 text-emerald-700 border-emerald-200"
+                              : "bg-amber-100 text-amber-700 border-amber-200",
+                          )}
+                        >
+                          {isStudentActive ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                      {/* Separator - mobile only */}
+                      <div className="w-px h-10 bg-slate-300 sm:hidden" />
+                      {/* Edit button - mobile only */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={startEditStudent}
+                        className="h-9 px-3.5 rounded-xl sm:hidden flex-shrink-0 gap-1.5"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="text-xs font-medium">Edit</span>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Navigation Tabs - Mobile Dropdown + Desktop Tabs */}
-        <div className="sm:hidden">
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="w-full flex items-center justify-between p-3 bg-white rounded-2xl border border-slate-200 shadow-sm"
-          >
-            <span className="flex items-center gap-2 font-semibold text-sm text-slate-700">
-              {(() => {
-                const active = tabs.find((t) => t.id === activeTab);
-                const Icon = active?.icon;
-                return Icon ? <Icon className="h-4 w-4" /> : null;
-              })()}
-              {tabs.find((t) => t.id === activeTab)?.label}
-            </span>
-            <ChevronDown
-              className={cn(
-                "h-5 w-5 text-slate-400 transition-transform",
-                mobileMenuOpen && "rotate-180",
-              )}
-            />
-          </button>
-          {mobileMenuOpen && (
-            <div className="mt-2 p-2 bg-white rounded-2xl border border-slate-200 shadow-lg animate-in slide-in-from-top-2">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => {
-                      setActiveTab(tab.id);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={cn(
-                      "flex items-center gap-3 w-full px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200",
-                      activeTab === tab.id
-                        ? "bg-slate-100 text-slate-900"
-                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50",
-                    )}
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-violet-600 mb-1.5 sm:mb-2">
+              <BookOpen className="h-3.5 w-3.5" />
+              <span className="text-[10px] sm:text-xs font-medium">
+                Subjects
+              </span>
             </div>
-          )}
+            <p className="text-lg sm:text-xl font-bold">{subjectCount}</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+              Enrolled
+            </p>
+          </div>
+          <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-emerald-600 mb-1.5 sm:mb-2">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span className="text-[10px] sm:text-xs font-medium">
+                Attendance
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-bold">
+              {isAttendanceSummaryLoading
+                ? "..."
+                : hasAttendanceData
+                  ? `${attendanceStats.percentage}%`
+                  : "—"}
+            </p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+              {attendanceStats.present}/{attendanceStats.total} days present
+            </p>
+          </div>
+          <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-amber-600 mb-1.5 sm:mb-2">
+              <NepaliRupee className="h-3.5 w-3.5" />
+              <span className="text-[10px] sm:text-xs font-medium">Fees</span>
+            </div>
+            <p className="text-lg sm:text-xl font-bold">
+              {feeStats.totalRemaining > 0
+                ? formatCurrency(feeStats.totalRemaining)
+                : "Paid"}
+            </p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+              {formatCurrency(feeStats.totalPaid)} paid of{" "}
+              {formatCurrency(feeStats.totalExpected)}
+            </p>
+          </div>
+          <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-blue-600 mb-1.5 sm:mb-2">
+              <Users className="h-3.5 w-3.5" />
+              <span className="text-[10px] sm:text-xs font-medium">
+                Parents
+              </span>
+            </div>
+            <p className="text-lg sm:text-xl font-bold">
+              {editedParents.length}
+            </p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+              Guardians
+            </p>
+          </div>
         </div>
-        <div className="hidden sm:flex gap-2 p-1.5 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-x-auto">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  "flex items-center gap-2 px-4 md:px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-200 whitespace-nowrap",
-                  activeTab === tab.id
-                    ? "bg-white text-slate-900 shadow-lg shadow-slate-200"
-                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-50",
-                )}
+
+        {/* Tabs */}
+        <Tabs
+          value={activeTab}
+          onValueChange={(value) => setActiveTab(value as TabType)}
+          className="space-y-4"
+        >
+          {/* Mobile dropdown */}
+          <div className="sm:hidden">
+            <Select
+              value={activeTab}
+              onValueChange={(value) => setActiveTab(value as TabType)}
+            >
+              <SelectTrigger className="w-full h-10 rounded-xl bg-white border-slate-200 text-sm font-medium">
+                <SelectValue placeholder="Select tab" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="overview">
+                  <span className="flex items-center gap-2">
+                    <Eye className="h-3.5 w-3.5" /> Overview
+                  </span>
+                </SelectItem>
+                <SelectItem value="parents">
+                  <span className="flex items-center gap-2">
+                    <Users className="h-3.5 w-3.5" /> Parents
+                  </span>
+                </SelectItem>
+                <SelectItem value="academic">
+                  <span className="flex items-center gap-2">
+                    <GraduationCap className="h-3.5 w-3.5" /> Academic
+                  </span>
+                </SelectItem>
+                <SelectItem value="attendance">
+                  <span className="flex items-center gap-2">
+                    <Calendar className="h-3.5 w-3.5" /> Attendance
+                  </span>
+                </SelectItem>
+                <SelectItem value="fees">
+                  <span className="flex items-center gap-2">
+                    <NepaliRupee className="h-3.5 w-3.5" /> Fees
+                  </span>
+                </SelectItem>
+                <SelectItem value="documents">
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-3.5 w-3.5" /> Documents
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {/* Desktop tab list */}
+          <div className="hidden sm:block w-full">
+            <TabsList className="grid grid-cols-6 h-auto p-1 bg-white rounded-xl border border-slate-200 w-full">
+              <TabsTrigger
+                value="overview"
+                className="rounded-lg text-xs sm:text-sm py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
               >
-                <Icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger
+                value="parents"
+                className="rounded-lg text-xs sm:text-sm py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              >
+                <Users className="h-3.5 w-3.5 mr-1.5" />
+                Parents
+              </TabsTrigger>
+              <TabsTrigger
+                value="academic"
+                className="rounded-lg text-xs sm:text-sm py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              >
+                <GraduationCap className="h-3.5 w-3.5 mr-1.5" />
+                Academic
+              </TabsTrigger>
+              <TabsTrigger
+                value="attendance"
+                className="rounded-lg text-xs sm:text-sm py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              >
+                <Calendar className="h-3.5 w-3.5 mr-1.5" />
+                Attendance
+              </TabsTrigger>
+              <TabsTrigger
+                value="fees"
+                className="rounded-lg text-xs sm:text-sm py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              >
+                <NepaliRupee className="h-3.5 w-3.5 mr-1.5" />
+                Fees
+              </TabsTrigger>
+              <TabsTrigger
+                value="documents"
+                className="rounded-lg text-xs sm:text-sm py-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+              >
+                <FileText className="h-3.5 w-3.5 mr-1.5" />
+                Documents
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        {/* Tab Content */}
-        {activeTab === "overview" && (
-          <>
+          <TabsContent value="overview" className="space-y-4">
             {/* Quick Stats Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-              {[
-                {
-                  icon: CheckCircle2,
-                  label: "Attendance",
-                  value: isAttendanceSummaryLoading
-                    ? "..."
-                    : hasAttendanceData
-                      ? `${attendanceStats.percentage}%`
-                      : "—",
-                  color: "emerald",
-                  subtext: `${attendanceStats.present}/${attendanceStats.total} days present`,
-                },
-                {
-                  icon: BookOpen,
-                  label: "Subjects",
-                  value: subjectCount,
-                  color: "violet",
-                  subtext: "Enrolled",
-                },
-                {
-                  icon: NepaliRupee,
-                  label: "Fee Status",
-                  value:
-                    feeStats.totalRemaining > 0
-                      ? formatCurrency(feeStats.totalRemaining)
-                      : "Paid",
-                  color: feeStats.totalRemaining > 0 ? "amber" : "emerald",
-                  subtext: `${formatCurrency(feeStats.totalPaid)} paid of ${formatCurrency(feeStats.totalExpected)}`,
-                },
-              ].map((stat, idx) => (
-                <div
-                  key={idx}
-                  className="group relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:p-5 transition-all hover:shadow-lg"
-                >
-                  <div
-                    className={cn(
-                      "absolute top-0 right-0 w-16 sm:w-20 h-16 sm:h-20 rounded-bl-[2rem] sm:rounded-bl-[3rem] -mr-4 sm:-mr-6 -mt-4 sm:-mt-6 opacity-[0.03]",
-                      stat.color === "emerald" && "bg-emerald-500",
-                      stat.color === "blue" && "bg-blue-500",
-                      stat.color === "violet" && "bg-violet-500",
-                      stat.color === "amber" && "bg-amber-500",
-                    )}
-                  />
-                  <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-                    <div
-                      className={cn(
-                        "w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform",
-                        stat.color === "emerald" &&
-                          "bg-emerald-500/10 text-emerald-600",
-                        stat.color === "blue" && "bg-blue-500/10 text-blue-600",
-                        stat.color === "violet" &&
-                          "bg-violet-500/10 text-violet-600",
-                        stat.color === "amber" &&
-                          "bg-amber-500/10 text-amber-600",
-                      )}
-                    >
-                      <stat.icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                    </div>
-                    <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
-                      {stat.label}
-                    </p>
-                  </div>
-                  <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                    {stat.value}
-                  </p>
-                  <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 mt-1">
-                    {stat.subtext}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Recent Activity / Quick Actions */}
-            <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
-              {/* Class & Section Info */}
-              <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              {/* Academic Information */}
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 hover:shadow-md transition-all">
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-3 sm:mb-4 flex items-center gap-2">
                   <GraduationCap className="h-4 w-4 sm:h-5 sm:w-5 text-violet-600" />
                   Academic Information
@@ -1501,7 +1574,7 @@ export default function StudentDetailPageClient() {
               </div>
 
               {/* Quick Actions */}
-              <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-4 sm:p-6">
+              <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-6 hover:shadow-md transition-all">
                 <h3 className="text-base sm:text-lg font-bold text-slate-900 mb-3 sm:mb-4 flex items-center gap-2">
                   <Settings className="h-4 w-4 sm:h-5 sm:w-5 text-slate-600" />
                   Quick Actions
@@ -1594,207 +1667,187 @@ export default function StudentDetailPageClient() {
                 </div>
               </div>
             </div>
-          </>
-        )}
+          </TabsContent>
 
-        {activeTab === "parents" && (
-          <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center justify-between mb-3 sm:mb-0">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                    Parent / Guardian Management
-                  </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                    Manage parent information and contact details
-                  </p>
+          <TabsContent value="parents" className="space-y-4">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                      Parent / Guardian Management
+                    </h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                      Manage parent information and contact details
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      setIsAddingParent(true);
+                      setEditingParentIndex(null);
+                    }}
+                    className="gap-2 rounded-xl text-sm"
+                    disabled={isAddingParent}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Parent
+                  </Button>
                 </div>
-                {/* Desktop Add Button */}
-                <Button
-                  onClick={() => {
-                    setIsAddingParent(true);
-                    setEditingParentIndex(null);
-                  }}
-                  className="hidden sm:inline-flex gap-2 rounded-xl text-sm"
-                  disabled={isAddingParent}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Parent
-                </Button>
               </div>
-              {/* Mobile Add Button - Full width below header */}
-              <Button
-                onClick={() => {
-                  setIsAddingParent(true);
-                  setEditingParentIndex(null);
-                }}
-                className="sm:hidden gap-2 rounded-xl text-sm w-full justify-center"
-                disabled={isAddingParent}
-              >
-                <Plus className="h-4 w-4" />
-                Add Parent
-              </Button>
-            </div>
 
-            <div className="p-4 sm:p-6">
-              {isAddingParent && (
-                <div className="mb-4 sm:mb-6 p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-violet-50 border-2 border-violet-200 animate-in slide-in-from-top-2">
-                  <h4 className="font-bold text-violet-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
-                    <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
-                    New Parent Details
-                  </h4>
-                  <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 mb-4">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        Name *
-                      </label>
-                      <input
-                        type="text"
-                        value={newParent.parentName}
-                        onChange={(e) =>
-                          setNewParent({
-                            ...newParent,
-                            parentName: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
-                        placeholder="Parent full name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                        Phone *
-                      </label>
-                      <input
-                        type="text"
-                        value={newParent.parentNumber}
-                        onChange={(e) =>
-                          setNewParent({
-                            ...newParent,
-                            parentNumber: e.target.value,
-                          })
-                        }
-                        className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
-                        placeholder="Phone number"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleAddParent}
-                      className="flex-1 sm:flex-none rounded-xl bg-violet-600 hover:bg-violet-700 text-sm"
-                    >
-                      <Save className="h-4 w-4 mr-2" />
-                      Save Parent
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setIsAddingParent(false);
-                        setNewParent({
-                          parentName: "",
-                          parentNumber: "",
-                          parentEmail: "",
-                          relation: "Father",
-                        });
-                      }}
-                      className="flex-1 sm:flex-none rounded-xl text-sm"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2 sm:space-y-3">
-                {editedParents.length === 0 ? (
-                  <div className="text-center py-8 sm:py-12 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                    <Users className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-2 sm:mb-3" />
-                    <p className="text-slate-500 font-bold text-sm">
-                      No parents added yet
-                    </p>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1">
-                      Tap "Add Parent" to add a guardian
-                    </p>
-                  </div>
-                ) : (
-                  editedParents.map((parent, index) => (
-                    <div
-                      key={index}
-                      className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden transition-all hover:border-slate-300 active:bg-slate-50 sm:active:bg-white"
-                    >
-                      {editingParentIndex === index ? (
-                        <div className="p-4 sm:p-5">
-                          <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 mb-4">
-                            <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                                Name
-                              </label>
-                              <input
-                                type="text"
-                                value={parent.parentName}
-                                onChange={(e) => {
-                                  const updated = [...editedParents];
-                                  updated[index] = {
-                                    ...updated[index],
-                                    parentName: e.target.value,
-                                  };
-                                  setEditedParents(updated);
-                                }}
-                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                                Phone
-                              </label>
-                              <input
-                                type="text"
-                                value={parent.parentNumber}
-                                onChange={(e) => {
-                                  const updated = [...editedParents];
-                                  updated[index] = {
-                                    ...updated[index],
-                                    parentNumber: e.target.value,
-                                  };
-                                  setEditedParents(updated);
-                                }}
-                                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={() => handleSaveParent(index)}
-                              className="flex-1 sm:flex-none rounded-xl text-sm"
-                            >
-                              <Save className="h-4 w-4 mr-2" />
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setEditingParentIndex(null)}
-                              className="flex-1 sm:flex-none rounded-xl text-sm"
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
+              <div className="p-4 sm:p-6">
+                {isAddingParent && (
+                  <div className="mb-4 sm:mb-6 p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-violet-50 border-2 border-violet-200 animate-in slide-in-from-top-2">
+                    <h4 className="font-bold text-violet-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
+                      <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
+                      New Parent Details
+                    </h4>
+                    <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 mb-4">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Name *</Label>
                         <div className="relative">
-                          {/* Main card content - tappable for edit on mobile */}
-                          <div
-                            className="flex items-center gap-3 p-3 sm:p-4 cursor-pointer sm:cursor-default"
-                            onClick={() => {
-                              // On mobile, tap the card to edit
-                              if (window.innerWidth < 640) {
-                                handleEditParent(index);
-                              }
-                            }}
-                          >
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input
+                            type="text"
+                            value={newParent.parentName}
+                            onChange={(e) =>
+                              setNewParent({
+                                ...newParent,
+                                parentName: e.target.value,
+                              })
+                            }
+                            placeholder="Parent full name"
+                            className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Phone *</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                          <Input
+                            type="text"
+                            value={newParent.parentNumber}
+                            onChange={(e) =>
+                              setNewParent({
+                                ...newParent,
+                                parentNumber: e.target.value,
+                              })
+                            }
+                            placeholder="Phone number"
+                            className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleAddParent}
+                        className="flex-1 sm:flex-none rounded-xl bg-violet-600 hover:bg-violet-700 text-sm"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Parent
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsAddingParent(false);
+                          setNewParent({
+                            parentName: "",
+                            parentNumber: "",
+                            parentEmail: "",
+                            relation: "Father",
+                          });
+                        }}
+                        className="flex-1 sm:flex-none rounded-xl text-sm"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2 sm:space-y-3">
+                  {editedParents.length === 0 ? (
+                    <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                      <Users className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                      <p className="text-sm font-medium text-muted-foreground">
+                        No parents added yet
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Tap "Add Parent" to add a guardian
+                      </p>
+                    </div>
+                  ) : (
+                    editedParents.map((parent, index) => (
+                      <div
+                        key={index}
+                        className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden transition-all hover:border-slate-300"
+                      >
+                        {editingParentIndex === index ? (
+                          <div className="p-4 sm:p-5">
+                            <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 mb-4">
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Name</Label>
+                                <div className="relative">
+                                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                  <Input
+                                    type="text"
+                                    value={parent.parentName}
+                                    onChange={(e) => {
+                                      const updated = [...editedParents];
+                                      updated[index] = {
+                                        ...updated[index],
+                                        parentName: e.target.value,
+                                      };
+                                      setEditedParents(updated);
+                                    }}
+                                    className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg"
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">Phone</Label>
+                                <div className="relative">
+                                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                  <Input
+                                    type="text"
+                                    value={parent.parentNumber}
+                                    onChange={(e) => {
+                                      const updated = [...editedParents];
+                                      updated[index] = {
+                                        ...updated[index],
+                                        parentNumber: e.target.value,
+                                      };
+                                      setEditedParents(updated);
+                                    }}
+                                    className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => handleSaveParent(index)}
+                                className="flex-1 sm:flex-none rounded-xl text-sm"
+                              >
+                                <Save className="h-4 w-4 mr-2" />
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setEditingParentIndex(null)}
+                                className="flex-1 sm:flex-none rounded-xl text-sm"
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3 p-3 sm:p-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
                               <User className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1823,98 +1876,60 @@ export default function StudentDetailPageClient() {
                                 )}
                               </div>
                             </div>
-
-                            {/* Desktop action buttons */}
-                            <div className="hidden sm:flex items-center gap-1 flex-shrink-0">
+                            <div className="flex items-center gap-1 flex-shrink-0">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditParent(index);
-                                }}
-                                className="h-9 w-9 rounded-xl hover:bg-slate-100"
+                                onClick={() => handleEditParent(index)}
+                                className="h-9 w-9 rounded-lg hover:bg-slate-100"
                               >
                                 <Pencil className="h-4 w-4 text-slate-400" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                onClick={() =>
                                   setDeleteParentDialog({
                                     index,
                                     name: parent.parentName,
-                                  });
-                                }}
-                                className="h-9 w-9 rounded-xl hover:bg-red-50"
+                                  })
+                                }
+                                className="h-9 w-9 rounded-lg hover:bg-red-50"
                               >
                                 <Trash2 className="h-4 w-4 text-red-400" />
                               </Button>
                             </div>
-
-                            {/* Mobile swipe/action indicator */}
-                            <ChevronRight className="h-5 w-5 text-slate-300 sm:hidden flex-shrink-0" />
                           </div>
-
-                          {/* Mobile action buttons - swipeable or bottom sheet style */}
-                          <div className="sm:hidden flex border-t border-slate-100 divide-x divide-slate-100">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditParent(index);
-                              }}
-                              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-slate-600 hover:bg-slate-50 active:bg-slate-100 transition-colors"
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                              Edit
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteParentDialog({
-                                  index,
-                                  name: parent.parentName,
-                                });
-                              }}
-                              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-red-600 hover:bg-red-50 active:bg-red-100 transition-colors"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          </TabsContent>
 
-        {activeTab === "academic" && (
-          <div className="space-y-4 sm:space-y-6">
+          <TabsContent value="academic" className="space-y-4">
             {/* Subjects Section */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden">
-              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:justify-between">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-slate-900">
                     Enrolled Subjects
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                     Current academic term subjects and teachers
                   </p>
                 </div>
               </div>
               <div className="p-4 sm:p-6">
                 {classAssignments.length === 0 ? (
-                  <div className="text-center py-8 sm:py-12 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                    <BookOpen className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-2 sm:mb-3" />
-                    <p className="text-slate-500 font-bold text-sm">
+                  <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                    <BookOpen className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-muted-foreground">
                       No subjects assigned
                     </p>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Assign subjects to this student
                     </p>
                   </div>
@@ -1923,10 +1938,10 @@ export default function StudentDetailPageClient() {
                     {classAssignments.map((assignment) => (
                       <div
                         key={assignment.classAssignmentId}
-                        className="p-3 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-200 bg-white hover:border-violet-200 hover:shadow-sm transition-all group"
+                        className="p-3 sm:p-4 rounded-xl border border-slate-200/80 bg-white hover:border-violet-200 hover:shadow-md transition-all group"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                             <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1982,30 +1997,25 @@ export default function StudentDetailPageClient() {
             </div>
 
             {/* Daily Diary Section */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
               <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
                 <h3 className="text-base sm:text-lg font-bold text-slate-900">
                   Daily Diary
                 </h3>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                   Daily diary entries for the student&apos;s section
                 </p>
               </div>
               <div className="p-4 sm:p-6">
-                {diaryLoading ? (
-                  <div className="space-y-3 animate-pulse">
-                    <div className="h-32 sm:h-36 bg-muted rounded-xl" />
-                    <div className="h-32 sm:h-36 bg-muted rounded-xl" />
-                  </div>
-                ) : diaryEntries.length === 0 ? (
-                  <div className="text-center py-8 sm:py-12 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-violet-100 mx-auto flex items-center justify-center mb-2 sm:mb-3">
+                {diaryEntries.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-violet-100 mx-auto flex items-center justify-center mb-3">
                       <BookMarked className="h-6 w-6 sm:h-7 sm:w-7 text-violet-600" />
                     </div>
-                    <p className="text-slate-500 font-bold text-sm sm:text-base">
+                    <p className="text-sm font-medium text-muted-foreground">
                       No diary entries
                     </p>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Diary entries will appear here once created
                     </p>
                   </div>
@@ -2014,7 +2024,7 @@ export default function StudentDetailPageClient() {
                     {diaryEntries.map((entry) => (
                       <div
                         key={entry.diaryId}
-                        className="rounded-xl border border-slate-200 bg-white hover:border-violet-200 hover:shadow-md transition-all group flex flex-col h-full"
+                        className="rounded-xl border border-slate-200/80 bg-white hover:border-violet-200 hover:shadow-md transition-all group flex flex-col h-full"
                       >
                         <div className="p-4 sm:p-5 flex flex-col flex-1">
                           <div className="flex items-start gap-3 sm:gap-4 mb-3">
@@ -2057,19 +2067,6 @@ export default function StudentDetailPageClient() {
                                 </p>
                               </div>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                router.push(
-                                  `/admin/sections/${sectionId}#diary`,
-                                )
-                              }
-                              className="text-[11px] sm:text-xs rounded-lg h-8 sm:h-9 px-3 text-violet-600 hover:text-violet-700 hover:bg-violet-50 font-semibold"
-                            >
-                              <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
-                              View
-                            </Button>
                           </div>
                         </div>
                       </div>
@@ -2078,21 +2075,19 @@ export default function StudentDetailPageClient() {
                 )}
               </div>
             </div>
-          </div>
-        )}
+          </TabsContent>
 
-        {activeTab === "attendance" && (
-          <div className="space-y-4 sm:space-y-6">
+          <TabsContent value="attendance" className="space-y-4">
             {/* Attendance Overview */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
               <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-slate-900">
                       Attendance Overview
                     </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                      Comprehensive attendance analytics (Read-only)
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                      Comprehensive attendance analytics
                     </p>
                   </div>
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
@@ -2100,7 +2095,7 @@ export default function StudentDetailPageClient() {
                       value={selectedSubjectId}
                       onValueChange={setSelectedSubjectId}
                     >
-                      <SelectTrigger className="w-full sm:w-[150px] h-8 sm:h-9 rounded-xl text-xs sm:text-sm">
+                      <SelectTrigger className="w-full sm:w-[150px] h-9 rounded-xl text-xs sm:text-sm bg-white">
                         <SelectValue placeholder="All Subjects" />
                       </SelectTrigger>
                       <SelectContent>
@@ -2115,19 +2110,17 @@ export default function StudentDetailPageClient() {
                         ))}
                       </SelectContent>
                     </Select>
-                    <div className="relative w-full sm:w-auto">
-                      <MonthYearNavigator
-                        value={{
-                          year: selectedNavYear,
-                          month: selectedNavMonth,
-                        }}
-                        onChange={(year, month) => {
-                          setSelectedNavYear(year);
-                          setSelectedNavMonth(month);
-                        }}
-                        className="w-full sm:w-auto"
-                      />
-                    </div>
+                    <MonthYearNavigator
+                      value={{
+                        year: selectedNavYear,
+                        month: selectedNavMonth,
+                      }}
+                      onChange={(year, month) => {
+                        setSelectedNavYear(year);
+                        setSelectedNavMonth(month);
+                      }}
+                      className="w-full sm:w-auto"
+                    />
                     <Button
                       variant="outline"
                       size="sm"
@@ -2137,7 +2130,7 @@ export default function StudentDetailPageClient() {
                         setSelectedNavYear(bs.year);
                         setSelectedNavMonth(bs.month);
                       }}
-                      className="w-full sm:w-auto shrink-0 gap-1.5 rounded-xl text-xs sm:text-sm h-8 sm:h-9"
+                      className="w-full sm:w-auto shrink-0 gap-1.5 rounded-xl text-xs sm:text-sm h-9"
                     >
                       <RotateCcw className="h-3.5 w-3.5" />
                       <span>Reset</span>
@@ -2146,40 +2139,22 @@ export default function StudentDetailPageClient() {
                 </div>
               </div>
               <div className="p-4 sm:p-6">
-                {isAttendanceSummaryLoading ? (
-                  <div className="grid lg:grid-cols-12 gap-6 sm:gap-8 animate-pulse">
-                    <div className="lg:col-span-5 h-64 bg-muted rounded-xl" />
-                    <div className="lg:col-span-7 space-y-4">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-12 bg-muted rounded-xl" />
-                      ))}
-                    </div>
-                  </div>
-                ) : !hasAttendanceData ? (
-                  <div className="text-center py-8 sm:py-12 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                    <Calendar className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-2 sm:mb-3" />
-                    <p className="text-slate-500 font-bold text-sm">
+                {!hasAttendanceData ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                    <Calendar className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-muted-foreground">
                       No attendance data
                     </p>
                   </div>
                 ) : (
                   <div className="grid lg:grid-cols-12 gap-6 sm:gap-8">
                     <div className="lg:col-span-5 flex flex-col items-center">
-                      <div className="sm:hidden">
-                        <AnimatedPieChart
-                          percentage={attendanceStats.percentage}
-                          size={160}
-                          strokeWidth={14}
-                        />
-                      </div>
-                      <div className="hidden sm:block">
-                        <AnimatedPieChart
-                          percentage={attendanceStats.percentage}
-                          size={200}
-                          strokeWidth={16}
-                        />
-                      </div>
-                      <p className="mt-3 sm:mt-4 text-xs sm:text-sm text-center text-slate-500 font-semibold">
+                      <AnimatedPieChart
+                        percentage={attendanceStats.percentage}
+                        size={200}
+                        strokeWidth={16}
+                      />
+                      <p className="mt-4 text-xs sm:text-sm text-center text-muted-foreground font-medium">
                         {selectedSubjectId === "all"
                           ? "Overall attendance across all subjects"
                           : `Attendance for ${selectedSubjectName}`}
@@ -2190,7 +2165,7 @@ export default function StudentDetailPageClient() {
                         <div className="space-y-3 sm:space-y-4">
                           {subjectPerformance.map((subject) => (
                             <div key={subject.subjectId}>
-                              <div className="flex items-center justify-between mb-1 sm:mb-1.5">
+                              <div className="flex items-center justify-between mb-1.5">
                                 <span className="text-xs sm:text-sm font-bold text-slate-700">
                                   {subject.subjectName}
                                 </span>
@@ -2241,7 +2216,7 @@ export default function StudentDetailPageClient() {
                             <div
                               key={stat.label}
                               className={cn(
-                                "p-3 sm:p-4 rounded-xl sm:rounded-2xl border text-center",
+                                "p-3 sm:p-4 rounded-xl border text-center",
                                 stat.color === "emerald" &&
                                   "bg-emerald-50 border-emerald-100",
                                 stat.color === "red" &&
@@ -2278,13 +2253,13 @@ export default function StudentDetailPageClient() {
             </div>
 
             {/* Daily Attendance */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
               <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:justify-between">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-slate-900">
                     Daily Attendance Record
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                     Subject-wise attendance for selected date
                   </p>
                 </div>
@@ -2303,7 +2278,7 @@ export default function StudentDetailPageClient() {
                     return (
                       <div
                         key={assignment.classAssignmentId}
-                        className="w-[calc(50%-0.5rem)] sm:w-[150px] p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center text-center hover:border-violet-200 transition-all"
+                        className="w-[calc(50%-0.5rem)] sm:w-[150px] p-3 sm:p-4 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col items-center text-center hover:border-violet-200 transition-all"
                       >
                         <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-violet-500 mb-1.5 sm:mb-2" />
                         <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 truncate w-full">
@@ -2321,13 +2296,11 @@ export default function StudentDetailPageClient() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          </TabsContent>
 
-        {activeTab === "fees" && (
-          <div className="space-y-4 sm:space-y-6">
+          <TabsContent value="fees" className="space-y-4">
             {/* Fee Overview Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
               {[
                 {
                   icon: NepaliRupee,
@@ -2361,40 +2334,28 @@ export default function StudentDetailPageClient() {
               ].map((stat, idx) => (
                 <div
                   key={idx}
-                  className="group relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:p-5 transition-all hover:shadow-lg"
+                  className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all"
                 >
-                  <div
-                    className={cn(
-                      "absolute top-0 right-0 w-16 sm:w-20 h-16 sm:h-20 rounded-bl-[2rem] sm:rounded-bl-[3rem] -mr-4 sm:-mr-6 -mt-4 sm:-mt-6 opacity-[0.03]",
-                      stat.color === "emerald" && "bg-emerald-500",
-                      stat.color === "violet" && "bg-violet-500",
-                      stat.color === "amber" && "bg-amber-500",
-                      stat.color === "red" && "bg-red-500",
-                    )}
-                  />
-                  <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
                     <div
                       className={cn(
-                        "w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform",
+                        "w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center",
                         stat.color === "emerald" &&
-                          "bg-emerald-500/10 text-emerald-600",
+                          "bg-emerald-100 text-emerald-600",
                         stat.color === "violet" &&
-                          "bg-violet-500/10 text-violet-600",
-                        stat.color === "amber" &&
-                          "bg-amber-500/10 text-amber-600",
-                        stat.color === "red" && "bg-red-500/10 text-red-600",
+                          "bg-violet-100 text-violet-600",
+                        stat.color === "amber" && "bg-amber-100 text-amber-600",
+                        stat.color === "red" && "bg-red-100 text-red-600",
                       )}
                     >
-                      <stat.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                      <stat.icon className="h-3.5 w-3.5" />
                     </div>
-                    <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    <span className="text-[10px] sm:text-xs font-medium text-muted-foreground">
                       {stat.label}
-                    </p>
+                    </span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                    {stat.value}
-                  </p>
-                  <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 mt-1">
+                  <p className="text-lg sm:text-xl font-bold">{stat.value}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
                     {stat.subtext}
                   </p>
                 </div>
@@ -2402,95 +2363,17 @@ export default function StudentDetailPageClient() {
             </div>
 
             {/* Fee Management */}
-            <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
               <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:justify-between">
                 <div>
                   <h3 className="text-base sm:text-lg font-bold text-slate-900">
                     Fee Management
                   </h3>
-                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                     Manage student fees, payments, and track dues
                   </p>
                 </div>
-                {/* Mobile: centered dropdowns + full-width Clear/Add Fee */}
-                <div className="flex flex-col items-center gap-2 w-full sm:hidden">
-                  <div className="flex justify-center gap-2 w-full">
-                    <Select
-                      value={
-                        selectedFeeAcademicYearId !== null &&
-                        selectedFeeAcademicYearId !== -1
-                          ? String(selectedFeeAcademicYearId)
-                          : "ALL"
-                      }
-                      onValueChange={(v) =>
-                        setSelectedFeeAcademicYearId(
-                          v === "ALL" ? -1 : Number(v),
-                        )
-                      }
-                    >
-                      <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs">
-                        <SelectValue placeholder="All Years" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All Years</SelectItem>
-                        {academicYears.map((ay) => (
-                          <SelectItem
-                            key={ay.academicYearId}
-                            value={String(ay.academicYearId)}
-                          >
-                            {ay.academicYear}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Select
-                      value={feeFilter}
-                      onValueChange={(v) =>
-                        setFeeFilter(v as FeeStatus | "ALL")
-                      }
-                    >
-                      <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs">
-                        <SelectValue placeholder="All Status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All Status</SelectItem>
-                        <SelectItem value="UNPAID">Unpaid</SelectItem>
-                        <SelectItem value="PARTIAL">Partial</SelectItem>
-                        <SelectItem value="PAID">Paid</SelectItem>
-                        <SelectItem value="OVERDUE">Overdue</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {selectedFeeAcademicYearId !== defaultFeeYearId ||
-                  feeFilter !== "ALL" ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedFeeAcademicYearId(defaultFeeYearId);
-                        setFeeFilter("ALL");
-                      }}
-                      className="w-full h-9 rounded-xl text-xs font-medium"
-                    >
-                      <X className="h-4 w-4 mr-1.5" />
-                      Clear Filters
-                    </Button>
-                  ) : null}
-                  <Button
-                    onClick={() => {
-                      setIsAddingFee(true);
-                      setEditingFeeId(null);
-                    }}
-                    className="gap-2 rounded-xl text-xs w-full"
-                    size="sm"
-                    disabled={isAddingFee}
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Fee
-                  </Button>
-                </div>
-                {/* Desktop: inline row */}
-                <div className="hidden sm:flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Select
                     value={
                       selectedFeeAcademicYearId !== null &&
@@ -2502,7 +2385,7 @@ export default function StudentDetailPageClient() {
                       setSelectedFeeAcademicYearId(v === "ALL" ? -1 : Number(v))
                     }
                   >
-                    <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs">
+                    <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs bg-white">
                       <SelectValue placeholder="All Years" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2521,7 +2404,7 @@ export default function StudentDetailPageClient() {
                     value={feeFilter}
                     onValueChange={(v) => setFeeFilter(v as FeeStatus | "ALL")}
                   >
-                    <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs">
+                    <SelectTrigger className="w-[140px] h-9 rounded-xl text-xs bg-white">
                       <SelectValue placeholder="All Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -2532,8 +2415,8 @@ export default function StudentDetailPageClient() {
                       <SelectItem value="OVERDUE">Overdue</SelectItem>
                     </SelectContent>
                   </Select>
-                  {selectedFeeAcademicYearId !== defaultFeeYearId ||
-                  feeFilter !== "ALL" ? (
+                  {(selectedFeeAcademicYearId !== defaultFeeYearId ||
+                    feeFilter !== "ALL") && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2541,12 +2424,12 @@ export default function StudentDetailPageClient() {
                         setSelectedFeeAcademicYearId(defaultFeeYearId);
                         setFeeFilter("ALL");
                       }}
-                      className="h-9 px-3 rounded-xl text-xs font-medium text-slate-600 hover:text-slate-800 hover:bg-slate-100"
+                      className="h-9 px-3 rounded-xl text-xs font-medium"
                     >
-                      <X className="h-4 w-4 mr-1.5" />
+                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
                       Clear
                     </Button>
-                  ) : null}
+                  )}
                   <Button
                     onClick={() => {
                       setIsAddingFee(true);
@@ -2564,12 +2447,12 @@ export default function StudentDetailPageClient() {
               <div className="p-4 sm:p-6">
                 <div className="space-y-2 sm:space-y-3">
                   {fees.length === 0 ? (
-                    <div className="text-center py-8 sm:py-12 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                      <NepaliRupee className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-2 sm:mb-3" />
-                      <p className="text-slate-500 font-bold text-sm">
+                    <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                      <NepaliRupee className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                      <p className="text-sm font-medium text-muted-foreground">
                         No fees recorded
                       </p>
-                      <p className="text-slate-400 text-xs sm:text-sm mt-1">
+                      <p className="text-xs text-muted-foreground mt-1">
                         Click "Add Fee" to record a new fee
                       </p>
                     </div>
@@ -2581,18 +2464,17 @@ export default function StudentDetailPageClient() {
                       );
                       const remaining = fee.netFee - totalPaid;
                       const isExpanded = expandedFees.has(fee.studentFeeId);
-                      const isEditing = editingFeeId === fee.studentFeeId;
 
                       return (
                         <div
                           key={fee.studentFeeId}
-                          className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden transition-all hover:border-slate-300"
+                          className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden transition-all hover:border-slate-300"
                         >
                           <div
                             className="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 cursor-pointer"
                             onClick={() => toggleFee(fee.studentFeeId)}
                           >
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
                               <NepaliRupee className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -2647,7 +2529,7 @@ export default function StudentDetailPageClient() {
 
                           {isExpanded && (
                             <div className="px-3 sm:px-4 pb-3 sm:pb-4 animate-in slide-in-from-top-2">
-                              <div className="p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-50 space-y-3">
+                              <div className="p-3 sm:p-4 rounded-xl bg-slate-50 space-y-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-slate-600">
                                     <span className="font-medium">
@@ -2675,66 +2557,30 @@ export default function StudentDetailPageClient() {
                                       </span>
                                     </span>
                                   </div>
-                                  {/* Fee Actions - Different for Mobile and Desktop */}
                                   <div className="flex items-center gap-1">
-                                    {/* Mobile: Text buttons */}
-                                    <div className="flex sm:hidden items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleEditFee(fee.studentFeeId);
-                                        }}
-                                        className="h-8 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-200 px-2"
-                                      >
-                                        <Pencil className="h-3.5 w-3.5 mr-1" />
-                                        Edit
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDeleteFeeDialog({
-                                            id: fee.studentFeeId,
-                                            name: formatCurrency(fee.netFee),
-                                          });
-                                        }}
-                                        className="h-8 rounded-lg text-xs font-semibold text-red-500 hover:text-red-600 hover:bg-red-50 px-2"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5 mr-1" />
-                                        Delete
-                                      </Button>
-                                    </div>
-                                    {/* Desktop: Icon buttons with hover effects */}
-                                    <div className="hidden sm:flex items-center gap-0.5">
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleEditFee(fee.studentFeeId);
-                                        }}
-                                        className="h-9 w-9 rounded-lg hover:bg-slate-200 hover:shadow-sm transition-all"
-                                      >
-                                        <Pencil className="h-4 w-4 text-slate-500" />
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setDeleteFeeDialog({
-                                            id: fee.studentFeeId,
-                                            name: formatCurrency(fee.netFee),
-                                          });
-                                        }}
-                                        className="h-9 w-9 rounded-lg hover:bg-red-100 hover:shadow-sm transition-all"
-                                      >
-                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                      </Button>
-                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        handleEditFee(fee.studentFeeId)
+                                      }
+                                      className="h-9 w-9 rounded-lg hover:bg-slate-200"
+                                    >
+                                      <Pencil className="h-4 w-4 text-slate-500" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() =>
+                                        setDeleteFeeDialog({
+                                          id: fee.studentFeeId,
+                                          name: formatCurrency(fee.netFee),
+                                        })
+                                      }
+                                      className="h-9 w-9 rounded-lg hover:bg-red-100"
+                                    >
+                                      <Trash2 className="h-4 w-4 text-red-500" />
+                                    </Button>
                                   </div>
                                 </div>
 
@@ -2753,7 +2599,7 @@ export default function StudentDetailPageClient() {
                                       {fee.feePayments.map((payment) => (
                                         <div
                                           key={payment.feePaymentId}
-                                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg sm:rounded-xl bg-white border border-slate-100"
+                                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 rounded-lg bg-white border border-slate-200/80"
                                         >
                                           <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
@@ -2789,76 +2635,37 @@ export default function StudentDetailPageClient() {
                                               </span>
                                             </div>
                                           </div>
-                                          {/* Action Buttons - Different for Mobile and Desktop */}
-                                          <div className="flex items-center gap-2 self-stretch sm:self-center">
-                                            {/* Mobile: Text buttons centered */}
-                                            <div className="flex sm:hidden items-center gap-1 w-full border-t border-slate-100 pt-2 mt-1">
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                  handleEditPayment(
-                                                    fee.studentFeeId,
-                                                    payment,
-                                                  )
-                                                }
-                                                className="flex-1 h-8 rounded-lg text-xs font-semibold text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-                                              >
-                                                <Pencil className="h-3.5 w-3.5 mr-1" />
-                                                Edit
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                  setDeletePaymentDialog({
-                                                    feeId: fee.studentFeeId,
-                                                    paymentId:
-                                                      payment.feePaymentId,
-                                                    amount: formatCurrency(
-                                                      payment.amountPaid,
-                                                    ),
-                                                  })
-                                                }
-                                                className="flex-1 h-8 rounded-lg text-xs font-semibold text-red-500 hover:text-red-600 hover:bg-red-50"
-                                              >
-                                                <Trash2 className="h-3.5 w-3.5 mr-1" />
-                                                Delete
-                                              </Button>
-                                            </div>
-                                            {/* Desktop: Icon buttons with better visibility */}
-                                            <div className="hidden sm:flex items-center gap-0.5">
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                  handleEditPayment(
-                                                    fee.studentFeeId,
-                                                    payment,
-                                                  )
-                                                }
-                                                className="h-9 w-9 rounded-lg hover:bg-slate-200 hover:shadow-sm transition-all"
-                                              >
-                                                <Pencil className="h-4 w-4 text-slate-500" />
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() =>
-                                                  setDeletePaymentDialog({
-                                                    feeId: fee.studentFeeId,
-                                                    paymentId:
-                                                      payment.feePaymentId,
-                                                    amount: formatCurrency(
-                                                      payment.amountPaid,
-                                                    ),
-                                                  })
-                                                }
-                                                className="h-9 w-9 rounded-lg hover:bg-red-100 hover:shadow-sm transition-all"
-                                              >
-                                                <Trash2 className="h-4 w-4 text-red-500" />
-                                              </Button>
-                                            </div>
+                                          <div className="flex items-center gap-1">
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() =>
+                                                handleEditPayment(
+                                                  fee.studentFeeId,
+                                                  payment,
+                                                )
+                                              }
+                                              className="h-9 w-9 rounded-lg hover:bg-slate-200"
+                                            >
+                                              <Pencil className="h-4 w-4 text-slate-500" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() =>
+                                                setDeletePaymentDialog({
+                                                  feeId: fee.studentFeeId,
+                                                  paymentId:
+                                                    payment.feePaymentId,
+                                                  amount: formatCurrency(
+                                                    payment.amountPaid,
+                                                  ),
+                                                })
+                                              }
+                                              className="h-9 w-9 rounded-lg hover:bg-red-100"
+                                            >
+                                              <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
                                           </div>
                                         </div>
                                       ))}
@@ -2897,69 +2704,67 @@ export default function StudentDetailPageClient() {
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          </TabsContent>
 
-        {activeTab === "documents" && (
-          <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:justify-between">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-slate-900">
-                  Documents & Records
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                  Manage student documents and certificates
-                </p>
+          <TabsContent value="documents" className="space-y-4">
+            <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:justify-between">
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                    Documents & Records
+                  </h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                    Manage student documents and certificates
+                  </p>
+                </div>
+                <Button
+                  className="gap-2 rounded-xl text-xs sm:text-sm w-full sm:w-auto"
+                  size="sm"
+                >
+                  <Plus className="h-4 w-4" />
+                  Upload Document
+                </Button>
               </div>
-              <Button
-                className="gap-2 rounded-xl text-xs sm:text-sm w-full sm:w-auto"
-                size="sm"
-              >
-                <Plus className="h-4 w-4" />
-                Upload Document
-              </Button>
-            </div>
-            <div className="p-4 sm:p-6">
-              <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-slate-300 mx-auto mb-3 sm:mb-4" />
-                <p className="text-slate-500 font-bold text-base sm:text-lg">
-                  No documents uploaded
-                </p>
-                <p className="text-slate-400 text-xs sm:text-sm mt-1">
-                  Upload student documents, certificates, and records
-                </p>
+              <div className="p-4 sm:p-6">
+                <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                  <FileText className="h-10 w-10 sm:h-12 sm:w-12 text-slate-300 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-muted-foreground">
+                    No documents uploaded
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Upload student documents, certificates, and records
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          </TabsContent>
+        </Tabs>
 
         {/* Payment Edit Dialog */}
         <Dialog
           open={!!editingPaymentInfo}
           onOpenChange={(open) => !open && setEditingPaymentInfo(null)}
         >
-          <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] rounded-2xl p-0 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
-              <DialogHeader className="text-left">
-                <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-                    <Pencil className="h-4 w-4 text-violet-600" />
-                  </div>
-                  Edit Payment Record
-                </DialogTitle>
-                <DialogDescription className="text-xs sm:text-sm text-slate-500">
-                  Update payment details
-                </DialogDescription>
-              </DialogHeader>
-            </div>
+          <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] rounded-2xl p-0 gap-0">
+            <DialogHeader className="px-6 pt-6 pb-4 space-y-2">
+              <DialogTitle className="flex items-center gap-2.5 text-lg">
+                <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+                  <Pencil className="h-4.5 w-4.5 text-violet-600" />
+                </div>
+                Edit Payment Record
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground pl-[2.75rem]">
+                Update payment details
+              </DialogDescription>
+            </DialogHeader>
 
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="border-t" />
+
+            <div className="px-6 py-5 space-y-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Amount Paid
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Amount Paid</Label>
+                  <Input
                     type="number"
                     value={editingPaymentInfo?.payment.amountPaid || ""}
                     onChange={(e) =>
@@ -2971,14 +2776,12 @@ export default function StudentDetailPageClient() {
                         },
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Paid By
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Paid By</Label>
+                  <Input
                     type="text"
                     value={editingPaymentInfo?.payment.paidBy || ""}
                     onChange={(e) =>
@@ -2990,14 +2793,12 @@ export default function StudentDetailPageClient() {
                         },
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Phone
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Phone</Label>
+                  <Input
                     type="text"
                     value={editingPaymentInfo?.payment.phoneNumber || ""}
                     onChange={(e) =>
@@ -3009,37 +2810,39 @@ export default function StudentDetailPageClient() {
                         },
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Payment Type
-                  </label>
-                  <select
+                  <Label className="text-xs font-semibold">Payment Type</Label>
+                  <Select
                     value={editingPaymentInfo?.payment.paymentType || "CASH"}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setEditingPaymentInfo({
                         ...editingPaymentInfo!,
                         payment: {
                           ...editingPaymentInfo!.payment,
-                          paymentType: e.target.value as PaymentType,
+                          paymentType: value as PaymentType,
                         },
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
                   >
-                    <option value="CASH">Cash</option>
-                    <option value="CHEQUE">Cheque</option>
-                    <option value="ESEWA">eSewa</option>
-                    <option value="KHALTI">Khalti</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                  </select>
+                    <SelectTrigger className="h-11 text-sm rounded-xl bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="CHEQUE">Cheque</SelectItem>
+                      <SelectItem value="ESEWA">eSewa</SelectItem>
+                      <SelectItem value="KHALTI">Khalti</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">
+                        Bank Transfer
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="sm:col-span-2 space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Payment Date
-                  </label>
+                  <Label className="text-xs font-semibold">Payment Date</Label>
                   <MiniCalendar
                     value={
                       editingPaymentInfo?.payment.paymentDate
@@ -3063,21 +2866,23 @@ export default function StudentDetailPageClient() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+            <div className="border-t" />
+
+            <DialogFooter className="px-6 py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
               <Button
                 variant="outline"
                 onClick={() => setEditingPaymentInfo(null)}
-                className="flex-1 rounded-xl h-10 sm:h-11 font-bold"
+                className="rounded-xl text-sm w-full sm:w-auto"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSavePaymentUpdate}
-                className="flex-1 rounded-xl h-10 sm:h-11 bg-violet-600 hover:bg-violet-700 font-bold"
+                className="rounded-xl text-sm font-medium w-full sm:w-auto bg-violet-600 hover:bg-violet-700"
               >
                 Update Payment
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -3091,28 +2896,26 @@ export default function StudentDetailPageClient() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] rounded-2xl p-0 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
-              <DialogHeader className="text-left">
-                <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-                    <Plus className="h-4 w-4 text-violet-600" />
-                  </div>
-                  Record Payment
-                </DialogTitle>
-                <DialogDescription className="text-xs sm:text-sm text-slate-500">
-                  Add a new payment record for this fee
-                </DialogDescription>
-              </DialogHeader>
-            </div>
+          <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] rounded-2xl p-0 gap-0">
+            <DialogHeader className="px-6 pt-6 pb-4 space-y-2">
+              <DialogTitle className="flex items-center gap-2.5 text-lg">
+                <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center">
+                  <Plus className="h-4.5 w-4.5 text-violet-600" />
+                </div>
+                Record Payment
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground pl-[2.75rem]">
+                Add a new payment record for this fee
+              </DialogDescription>
+            </DialogHeader>
 
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="border-t" />
+
+            <div className="px-6 py-5 space-y-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Amount *
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Amount *</Label>
+                  <Input
                     type="number"
                     value={newPaymentData.amountPaid || ""}
                     onChange={(e) =>
@@ -3121,15 +2924,13 @@ export default function StudentDetailPageClient() {
                         amountPaid: Number(e.target.value),
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
                     placeholder="Enter amount"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Paid By *
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Paid By *</Label>
+                  <Input
                     type="text"
                     value={newPaymentData.paidBy}
                     onChange={(e) =>
@@ -3138,15 +2939,13 @@ export default function StudentDetailPageClient() {
                         paidBy: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
                     placeholder="Payer name"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Phone
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Phone</Label>
+                  <Input
                     type="text"
                     value={newPaymentData.phoneNumber}
                     onChange={(e) =>
@@ -3155,35 +2954,37 @@ export default function StudentDetailPageClient() {
                         phoneNumber: e.target.value,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
                     placeholder="Phone number"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Payment Type
-                  </label>
-                  <select
+                  <Label className="text-xs font-semibold">Payment Type</Label>
+                  <Select
                     value={newPaymentData.paymentType}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setNewPaymentData({
                         ...newPaymentData,
-                        paymentType: e.target.value as PaymentType,
+                        paymentType: value as PaymentType,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
                   >
-                    <option value="CASH">Cash</option>
-                    <option value="CHEQUE">Cheque</option>
-                    <option value="ESEWA">eSewa</option>
-                    <option value="KHALTI">Khalti</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                  </select>
+                    <SelectTrigger className="h-11 text-sm rounded-xl bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="CASH">Cash</SelectItem>
+                      <SelectItem value="CHEQUE">Cheque</SelectItem>
+                      <SelectItem value="ESEWA">eSewa</SelectItem>
+                      <SelectItem value="KHALTI">Khalti</SelectItem>
+                      <SelectItem value="BANK_TRANSFER">
+                        Bank Transfer
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="sm:col-span-2 space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Payment Date
-                  </label>
+                  <Label className="text-xs font-semibold">Payment Date</Label>
                   <MiniCalendar
                     value={
                       newPaymentData.paymentDate
@@ -3202,25 +3003,27 @@ export default function StudentDetailPageClient() {
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+            <div className="border-t" />
+
+            <DialogFooter className="px-6 py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
               <Button
                 variant="outline"
                 onClick={() => {
                   setIsRecordPaymentDialogOpen(false);
                   setRecordPaymentFeeId(null);
                 }}
-                className="flex-1 rounded-xl h-10 sm:h-11 font-bold"
+                className="rounded-xl text-sm w-full sm:w-auto"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleAddPayment}
                 disabled={!newPaymentData.amountPaid || !newPaymentData.paidBy}
-                className="flex-1 rounded-xl h-10 sm:h-11 bg-violet-600 hover:bg-violet-700 font-bold"
+                className="rounded-xl text-sm font-medium w-full sm:w-auto bg-violet-600 hover:bg-violet-700"
               >
                 Save Payment
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -3240,49 +3043,53 @@ export default function StudentDetailPageClient() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] rounded-2xl p-0 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
-              <DialogHeader className="text-left">
-                <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center">
-                    <Plus className="h-4 w-4 text-white" />
-                  </div>
-                  New Fee Entry
-                </DialogTitle>
-                <DialogDescription className="text-xs sm:text-sm text-slate-500">
-                  Record a new fee requirement for this student
-                </DialogDescription>
-              </DialogHeader>
-            </div>
+          <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] rounded-2xl p-0 gap-0">
+            <DialogHeader className="px-6 pt-6 pb-4 space-y-2">
+              <DialogTitle className="flex items-center gap-2.5 text-lg">
+                <div className="w-9 h-9 rounded-xl bg-slate-700 flex items-center justify-center">
+                  <Plus className="h-4.5 w-4.5 text-white" />
+                </div>
+                New Fee Entry
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground pl-[2.75rem]">
+                Record a new fee requirement for this student
+              </DialogDescription>
+            </DialogHeader>
 
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="border-t" />
+
+            <div className="px-6 py-5 space-y-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Fee Type *
-                  </label>
-                  <select
+                  <Label className="text-xs font-semibold">Fee Type *</Label>
+                  <Select
                     value={newFeeData.feeType}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setNewFeeData({
                         ...newFeeData,
-                        feeType: e.target.value as FeeTypes,
+                        feeType: value as FeeTypes,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
                   >
-                    <option value="ADMISSION_FEE">Admission</option>
-                    <option value="MONTHLY_FEE">Monthly</option>
-                    <option value="ANNUAL_FEE">Annual</option>
-                    <option value="EXTRACURRICULAR_FEE">Extra</option>
-                    <option value="EXAMINATION_FEE">Examination</option>
-                  </select>
+                    <SelectTrigger className="h-11 text-sm rounded-xl bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ADMISSION_FEE">Admission</SelectItem>
+                      <SelectItem value="MONTHLY_FEE">Monthly</SelectItem>
+                      <SelectItem value="ANNUAL_FEE">Annual</SelectItem>
+                      <SelectItem value="EXTRACURRICULAR_FEE">Extra</SelectItem>
+                      <SelectItem value="EXAMINATION_FEE">
+                        Examination
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <Label className="text-xs font-semibold">
                     Original Amount *
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     type="number"
                     value={newFeeData.originalAmount || ""}
                     onChange={(e) =>
@@ -3291,15 +3098,13 @@ export default function StudentDetailPageClient() {
                         originalAmount: Number(e.target.value),
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
                     placeholder="Enter amount"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Discount (%)
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Discount (%)</Label>
+                  <Input
                     type="number"
                     min={0}
                     max={100}
@@ -3313,14 +3118,12 @@ export default function StudentDetailPageClient() {
                         ),
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
                     placeholder="0"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Due Date *
-                  </label>
+                  <Label className="text-xs font-semibold">Due Date *</Label>
                   <MiniCalendar
                     value={
                       newFeeData.dueDate
@@ -3334,33 +3137,41 @@ export default function StudentDetailPageClient() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <Label className="text-xs font-semibold">
                     Academic Year *
-                  </label>
-                  <select
-                    value={newFeeData.academicYearId}
-                    onChange={(e) =>
+                  </Label>
+                  <Select
+                    value={
+                      newFeeData.academicYearId
+                        ? String(newFeeData.academicYearId)
+                        : ""
+                    }
+                    onValueChange={(value) =>
                       setNewFeeData({
                         ...newFeeData,
-                        academicYearId: Number(e.target.value),
+                        academicYearId: Number(value),
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
                   >
-                    <option value={0} disabled>
-                      Select year
-                    </option>
-                    {academicYears.map((ay) => (
-                      <option key={ay.academicYearId} value={ay.academicYearId}>
-                        {ay.academicYear}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="h-11 text-sm rounded-xl bg-white">
+                      <SelectValue placeholder="Select year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {academicYears.map((ay) => (
+                        <SelectItem
+                          key={ay.academicYearId}
+                          value={String(ay.academicYearId)}
+                        >
+                          {ay.academicYear}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
               {(newFeeData.originalAmount || 0) > 0 && (
-                <div className="p-3 sm:p-4 rounded-xl bg-violet-50 border-2 border-violet-100 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="p-4 rounded-xl bg-violet-50 border-2 border-violet-100 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <p className="text-[10px] font-bold text-violet-400 uppercase tracking-wider mb-0.5">
                       Original
@@ -3397,7 +3208,9 @@ export default function StudentDetailPageClient() {
               )}
             </div>
 
-            <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+            <div className="border-t" />
+
+            <DialogFooter className="px-6 py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -3410,7 +3223,7 @@ export default function StudentDetailPageClient() {
                     academicYearId: 0,
                   });
                 }}
-                className="flex-1 rounded-xl h-10 sm:h-11 font-bold"
+                className="rounded-xl text-sm w-full sm:w-auto"
               >
                 Cancel
               </Button>
@@ -3439,11 +3252,11 @@ export default function StudentDetailPageClient() {
                     },
                   });
                 }}
-                className="flex-1 rounded-xl h-10 sm:h-11 font-bold"
+                className="rounded-xl text-sm font-medium w-full sm:w-auto"
               >
                 Save Fee
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -3452,49 +3265,53 @@ export default function StudentDetailPageClient() {
           open={editingFeeId !== null}
           onOpenChange={(open) => !open && setEditingFeeId(null)}
         >
-          <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] rounded-2xl p-0 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-slate-100 bg-slate-50/50">
-              <DialogHeader className="text-left">
-                <DialogTitle className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-slate-700 flex items-center justify-center">
-                    <Pencil className="h-4 w-4 text-white" />
-                  </div>
-                  Edit Fee Entry
-                </DialogTitle>
-                <DialogDescription className="text-xs sm:text-sm text-slate-500">
-                  Update existing fee details
-                </DialogDescription>
-              </DialogHeader>
-            </div>
+          <DialogContent className="sm:max-w-lg w-[calc(100vw-2rem)] rounded-2xl p-0 gap-0">
+            <DialogHeader className="px-6 pt-6 pb-4 space-y-2">
+              <DialogTitle className="flex items-center gap-2.5 text-lg">
+                <div className="w-9 h-9 rounded-xl bg-slate-700 flex items-center justify-center">
+                  <Pencil className="h-4.5 w-4.5 text-white" />
+                </div>
+                Edit Fee Entry
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground pl-[2.75rem]">
+                Update existing fee details
+              </DialogDescription>
+            </DialogHeader>
 
-            <div className="p-4 sm:p-6 space-y-4">
+            <div className="border-t" />
+
+            <div className="px-6 py-5 space-y-5">
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Fee Type
-                  </label>
-                  <select
+                  <Label className="text-xs font-semibold">Fee Type</Label>
+                  <Select
                     value={editingFeeData.feeType}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setEditingFeeData({
                         ...editingFeeData,
-                        feeType: e.target.value as FeeTypes,
+                        feeType: value as FeeTypes,
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none bg-white"
                   >
-                    <option value="ADMISSION_FEE">Admission</option>
-                    <option value="MONTHLY_FEE">Monthly</option>
-                    <option value="ANNUAL_FEE">Annual</option>
-                    <option value="EXTRACURRICULAR_FEE">Extra</option>
-                    <option value="EXAMINATION_FEE">Examination</option>
-                  </select>
+                    <SelectTrigger className="h-11 text-sm rounded-xl bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ADMISSION_FEE">Admission</SelectItem>
+                      <SelectItem value="MONTHLY_FEE">Monthly</SelectItem>
+                      <SelectItem value="ANNUAL_FEE">Annual</SelectItem>
+                      <SelectItem value="EXTRACURRICULAR_FEE">Extra</SelectItem>
+                      <SelectItem value="EXAMINATION_FEE">
+                        Examination
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  <Label className="text-xs font-semibold">
                     Original Amount
-                  </label>
-                  <input
+                  </Label>
+                  <Input
                     type="number"
                     value={editingFeeData.originalAmount || ""}
                     onChange={(e) =>
@@ -3503,14 +3320,12 @@ export default function StudentDetailPageClient() {
                         originalAmount: Number(e.target.value),
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Discount (%)
-                  </label>
-                  <input
+                  <Label className="text-xs font-semibold">Discount (%)</Label>
+                  <Input
                     type="number"
                     min={0}
                     max={100}
@@ -3524,13 +3339,11 @@ export default function StudentDetailPageClient() {
                         ),
                       })
                     }
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-semibold focus:border-violet-400 focus:ring-2 focus:ring-violet-100 outline-none"
+                    className="h-11 text-sm rounded-xl bg-white border-slate-200"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Due Date
-                  </label>
+                  <Label className="text-xs font-semibold">Due Date</Label>
                   <MiniCalendar
                     value={
                       editingFeeData.dueDate
@@ -3549,7 +3362,7 @@ export default function StudentDetailPageClient() {
               </div>
 
               {(editingFeeData.originalAmount || 0) > 0 && (
-                <div className="p-3 sm:p-4 rounded-xl bg-violet-50 border-2 border-violet-100 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="p-4 rounded-xl bg-violet-50 border-2 border-violet-100 grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div>
                     <p className="text-[10px] font-bold text-violet-400 uppercase tracking-wider mb-0.5">
                       Original
@@ -3586,131 +3399,71 @@ export default function StudentDetailPageClient() {
               )}
             </div>
 
-            <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+            <div className="border-t" />
+
+            <DialogFooter className="px-6 py-4 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
               <Button
                 variant="outline"
                 onClick={() => setEditingFeeId(null)}
-                className="flex-1 rounded-xl h-10 sm:h-11 font-bold"
+                className="rounded-xl text-sm w-full sm:w-auto"
               >
                 Cancel
               </Button>
               <Button
                 onClick={handleSaveFee}
-                className="flex-1 rounded-xl h-10 sm:h-11 font-bold"
+                className="rounded-xl text-sm font-medium w-full sm:w-auto"
               >
                 Update Fee
               </Button>
-            </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
 
         {/* Delete Parent Confirmation */}
-        <AlertDialog
+        <DeleteConfirmationDialog
           open={!!deleteParentDialog}
           onOpenChange={(open) => !open && setDeleteParentDialog(null)}
-        >
-          <AlertDialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full mx-auto rounded-2xl">
-            <AlertDialogHeader className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                  <Trash2 className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
-                </div>
-                <AlertDialogTitle className="text-base sm:text-lg">
-                  Remove Parent?
-                </AlertDialogTitle>
-              </div>
-              <AlertDialogDescription className="text-xs sm:text-sm leading-relaxed">
-                This will permanently remove{" "}
-                <strong>{deleteParentDialog?.name} </strong> from this
-                student&apos;s record. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="border-t my-2" />
-            <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-              <AlertDialogCancel className="w-full sm:w-auto text-xs sm:text-sm">
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleConfirmDeleteParent}
-                className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs sm:text-sm"
-              >
-                Remove
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          title="Remove Parent?"
+          description={
+            <>
+              This will permanently remove{" "}
+              <strong>{deleteParentDialog?.name} </strong> from this
+              student&apos;s record. This action cannot be undone.
+            </>
+          }
+          confirmLabel="Remove"
+          onConfirm={handleConfirmDeleteParent}
+        />
 
         {/* Delete Fee Confirmation */}
-        <AlertDialog
+        <DeleteConfirmationDialog
           open={!!deleteFeeDialog}
           onOpenChange={(open) => !open && setDeleteFeeDialog(null)}
-        >
-          <AlertDialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full mx-auto rounded-2xl">
-            <AlertDialogHeader className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                  <Trash2 className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
-                </div>
-                <AlertDialogTitle className="text-base sm:text-lg">
-                  Delete Fee?
-                </AlertDialogTitle>
-              </div>
-              <AlertDialogDescription className="text-xs sm:text-sm leading-relaxed">
-                This will permanently remove the fee{" "}
-                <strong>{deleteFeeDialog?.name}</strong> and all associated
-                payments. This action cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="border-t my-2" />
-            <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-              <AlertDialogCancel className="w-full sm:w-auto text-xs sm:text-sm">
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleConfirmDeleteFee}
-                className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs sm:text-sm"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          title="Delete Fee?"
+          description={
+            <>
+              This will permanently remove the fee{" "}
+              <strong>{deleteFeeDialog?.name}</strong> and all associated
+              payments. This action cannot be undone.
+            </>
+          }
+          onConfirm={handleConfirmDeleteFee}
+        />
 
         {/* Delete Payment Confirmation */}
-        <AlertDialog
+        <DeleteConfirmationDialog
           open={!!deletePaymentDialog}
           onOpenChange={(open) => !open && setDeletePaymentDialog(null)}
-        >
-          <AlertDialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full mx-auto rounded-2xl">
-            <AlertDialogHeader className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
-                  <Trash2 className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
-                </div>
-                <AlertDialogTitle className="text-base sm:text-lg">
-                  Delete Payment?
-                </AlertDialogTitle>
-              </div>
-              <AlertDialogDescription className="text-xs sm:text-sm leading-relaxed">
-                This will permanently remove the payment of{" "}
-                <strong>{deletePaymentDialog?.amount}</strong>. This action
-                cannot be undone.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <div className="border-t my-2" />
-            <AlertDialogFooter className="gap-2 flex-col sm:flex-row">
-              <AlertDialogCancel className="w-full sm:w-auto text-xs sm:text-sm">
-                Cancel
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleConfirmDeletePayment}
-                className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90 text-xs sm:text-sm"
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          title="Delete Payment?"
+          description={
+            <>
+              This will permanently remove the payment of{" "}
+              <strong>{deletePaymentDialog?.amount}</strong>. This action
+              cannot be undone.
+            </>
+          }
+          onConfirm={handleConfirmDeletePayment}
+        />
       </div>
     </div>
   );

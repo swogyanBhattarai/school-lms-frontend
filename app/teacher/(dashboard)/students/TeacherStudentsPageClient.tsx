@@ -36,7 +36,6 @@ import { getActiveSchoolClasses } from "@/lib/api/schoolClass";
 import { getSectionsBySchoolClassId } from "@/lib/api/section";
 import type { SectionResponse, StudentResponse } from "@/types/lms";
 import StudentsStats from "@/app/_components/student/StudentsStats";
-import { StudentListSkeleton } from "@/app/_components/skeletons/StudentListSkeleton";
 import { cn } from "@/lib/utils";
 import { isAxiosError } from "axios";
 import {
@@ -54,7 +53,6 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/app/_components/ui/sheet";
-import  useHasMounted  from "@/lib/hooks/useHasMounted";
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (isAxiosError(error)) {
@@ -102,31 +100,30 @@ const AVATAR_COLORS = [
 ];
 
 export default function TeacherStudentPageClient() {
-  const hasMounted = useHasMounted();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
   // URL params initialization
-  const [search, setSearch] = useState(searchParams.get("studentName") || "");
+  const [search, setSearch] = useState(searchParams?.get("studentName") || "");
   const [selectedClassId, setSelectedClassId] = useState<string>(
-    searchParams.get("classId") || "",
+    searchParams?.get("classId") || "",
   );
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
-    searchParams.get("sectionId") || "",
+    searchParams?.get("sectionId") || "",
   );
   const [sortBy, setSortBy] = useState(
-    searchParams.get("sortBy") || "studentId",
+    searchParams?.get("sortBy") || "studentId",
   );
-  const [sortDir, setSortDir] = useState(searchParams.get("sortDir") || "ASC");
+  const [sortDir, setSortDir] = useState(searchParams?.get("sortDir") || "ASC");
   const [pageNum, setPageNum] = useState(
-    Number(searchParams.get("pageNum")) || 1,
+    Number(searchParams?.get("pageNum")) || 1,
   );
   const [pageSize, setPageSize] = useState(
-    Number(searchParams.get("pageSize")) || 20,
+    Number(searchParams?.get("pageSize")) || 20,
   );
   const [hasSectionAssignment, setHasSectionAssignment] = useState<string>(
-    searchParams.get("hasSectionAssignment") || "all",
+    searchParams?.get("hasSectionAssignment") || "all",
   );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -276,10 +273,8 @@ export default function TeacherStudentPageClient() {
   ]);
 
   useEffect(() => {
-    if (hasMounted) {
-      updateUrlParams();
-    }
-  }, [updateUrlParams, hasMounted]);
+    updateUrlParams();
+  }, [updateUrlParams]);
 
   // Handlers
   const handleSort = (column: string) => {
@@ -330,8 +325,6 @@ export default function TeacherStudentPageClient() {
     return `${Math.round(average)}%`;
   };
 
-  if (!hasMounted) return null;
-
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Page Header */}
@@ -351,13 +344,11 @@ export default function TeacherStudentPageClient() {
         totalStudents={totalStudents}
         classesCount={classes.length}
         sectionsCount={classes.reduce(
-          (sum, schoolClass) => sum + (schoolClass.sectionNames?.length || 0),
+          (sum, schoolClass) => sum + (schoolClass.sections?.length || 0),
           0,
         )}
         currentPage={currentPage}
         totalPages={totalPages}
-        studentsLoading={studentsLoading}
-        classesLoading={classesLoading}
       />
 
       {/* Filters & Search */}
@@ -701,9 +692,7 @@ export default function TeacherStudentPageClient() {
       </div>
 
       {/* Students Display */}
-      {studentsLoading ? (
-        <StudentListSkeleton viewMode={viewMode} />
-      ) : studentsError ? (
+      {studentsError && (
         <div className="flex items-center justify-center py-16 sm:py-20">
           <div className="flex flex-col items-center gap-3 text-center">
             <div className="h-10 w-10 rounded-full bg-destructive/10 flex items-center justify-center">
@@ -721,7 +710,9 @@ export default function TeacherStudentPageClient() {
             </Button>
           </div>
         </div>
-      ) : students.length === 0 ? (
+      )}
+
+      {!studentsError && !studentsLoading && students.length === 0 && (
         <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
           <Users className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
           <p className="text-sm text-muted-foreground">No students found</p>
@@ -736,7 +727,11 @@ export default function TeacherStudentPageClient() {
             </Button>
           )}
         </div>
-      ) : viewMode === "grid" ? (
+      )}
+
+      {!studentsError && students.length > 0 && (
+        <>
+        {viewMode === "grid" ? (
         <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {students.map((student, index) => {
             const initials = student.studentName
@@ -968,6 +963,8 @@ export default function TeacherStudentPageClient() {
             </table>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Pagination */}

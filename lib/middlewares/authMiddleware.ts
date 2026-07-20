@@ -85,21 +85,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ── Subdomain validation (runs for ALL hosts) ──
-  const schoolSlug = extractSubdomain(hostname);
-  if (!schoolSlug || schoolSlug === "www") {
-    return NextResponse.redirect(new URL("/not-found", request.url));
-  }
+  // ── Subdomain validation ──
+  let schoolSlug: string | null = null;
 
-  const validSlugs = await getValidSlugs();
-  if (!validSlugs.includes(schoolSlug)) {
-    return NextResponse.redirect(new URL("/not-found", request.url));
+  if (hostname === "localhost") {
+    // Bare localhost is allowed for development — no slug needed
+  } else {
+    schoolSlug = extractSubdomain(hostname);
+    if (!schoolSlug || schoolSlug === "www") {
+      return NextResponse.redirect(new URL("/not-found", request.url));
+    }
+
+    const validSlugs = await getValidSlugs();
+
+    // If the slug fetch fails (empty list), still allow the request through
+    // so the backend can validate at login time rather than hard-blocking.
+    if (validSlugs.length > 0 && !validSlugs.includes(schoolSlug)) {
+      return NextResponse.redirect(new URL("/not-found", request.url));
+    }
   }
 
   // ── Public paths (login, not-found) ──
   if (isPublicPath(pathname)) {
     const res = NextResponse.next();
-    res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
+    if (schoolSlug) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
     return res;
   }
 
@@ -140,6 +149,6 @@ export async function middleware(request: NextRequest) {
 
   // ── Final response with cookie ──
   const res = NextResponse.next();
-  res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
+  if (schoolSlug) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
   return res;
 }

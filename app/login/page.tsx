@@ -12,24 +12,22 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [schoolSlug, setSchoolSlug] = useState<string | null>(null);
-  const [slugError, setSlugError] = useState(false);
 
   useEffect(() => {
     const match = document.cookie.match(/(?:^|;\s*)schoolSlug=([^;]*)/);
     if (match) {
       setSchoolSlug(match[1]);
-    } else {
-      setSlugError(true);
     }
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!schoolSlug) return;
     setError("");
     setLoading(true);
     try {
-      await login({ username, password, schoolSlug });
+      const payload: { username: string; password: string; schoolSlug?: string } = { username, password };
+      if (schoolSlug) payload.schoolSlug = schoolSlug;
+      await login(payload);
       router.replace("/");
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Login failed"));
@@ -37,22 +35,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-
-  if (slugError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
-        <div className="text-center px-6">
-          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">!</span>
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Invalid Access</h1>
-          <p className="text-muted-foreground mt-2 max-w-sm">
-            This URL is not associated with any school. Please check the address or contact your administrator.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">

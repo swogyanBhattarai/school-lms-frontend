@@ -52,20 +52,45 @@ async function getValidSlugs(): Promise<string[]> {
   }
 }
 
+// ── Known root domain ──
+// Must be set in production, e.g. KNOWN_DOMAIN=swogyanbhattarai.com.np
+// If not set, the middleware will reject all non-localhost requests.
+const KNOWN_DOMAIN = process.env.KNOWN_DOMAIN;
+
 // ── Subdomain extraction ──
-// "slug.localhost"         → "slug"
-// "slug.domain.com"        → "slug"
-// "slug.domain.com.np"     → "slug"
-// "localhost"              → null
-// "www.domain.com"         → null (www is ignored)
+// Matches hostname against the known root domain or localhost.
+// Returns the tenant slug, or null if no valid subdomain is found.
+//
+// Examples with KNOWN_DOMAIN = "swogyanbhattarai.com.np":
+//   localhost                              → null
+//   school-a.localhost                     → "school-a"
+//   foo.school-a.localhost                 → null     (too many labels)
+//   swogyanbhattarai.com.np                → null     (bare domain)
+//   www.swogyanbhattarai.com.np            → null     (www ignored)
+//   school-a.swogyanbhattarai.com.np       → "school-a"
+//   foo.school-a.swogyanbhattarai.com.np   → null     (too many labels)
+//   domain.com.np                          → null     (doesn't match known domain)
+//   evil.com                               → null     (doesn't match known domain)
 function extractSubdomain(hostname: string): string | null {
-  const parts = hostname.split(".");
-  if (parts.length === 1) return null;
-  if (parts.length === 2) {
-    return parts[0] === "localhost" ? null : parts[0];
+  // ── Localhost development ──
+  if (hostname.endsWith(".localhost")) {
+    const prefix = hostname.slice(0, -".localhost".length);
+    // Must be a single label — "foo.school-a.localhost" is invalid
+    return prefix.includes(".") ? null : prefix;
   }
-  const candidate = parts[0];
-  return candidate === "www" ? null : candidate;
+  if (hostname === "localhost") return null;
+
+  // ── Production ──
+  const domainSuffix = "." + KNOWN_DOMAIN;
+  if (hostname.endsWith(domainSuffix)) {
+    const prefix = hostname.slice(0, -domainSuffix.length);
+    if (!prefix || prefix === "www") return null;
+    // Must be a single label — "foo.school-a.domain.com" is invalid
+    return prefix.includes(".") ? null : prefix;
+  }
+
+  // Doesn't match our domain at all — no valid subdomain
+  return null;
 }
 
 // ── Exact public path match (NOT startsWith) ──

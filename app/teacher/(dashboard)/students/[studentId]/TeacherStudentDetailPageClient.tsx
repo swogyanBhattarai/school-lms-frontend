@@ -1,808 +1,1187 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import {
-  Calendar,
-  ChevronDown,
-  ChevronRight,
-  BookOpen,
-  User,
-  Mail,
-  MapPin,
+  ChevronLeft,
   GraduationCap,
+  CalendarDays,
+  BookOpen,
   Users,
-  CheckCircle2,
-  AlertCircle,
-  FileText,
   BarChart3,
-  PieChart,
-  TrendingUp,
-  Filter,
   BookMarked,
   RotateCcw,
+  AlertCircle,
+  FlaskConical,
+  Globe,
+  Cpu,
+  Grid3X3,
+  FileText,
+  CheckCircle2,
+  Clock,
+  TrendingUp,
 } from "lucide-react";
-import { Button } from "@/app/_components/ui/button";
-import { Badge } from "@/app/_components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/_components/ui/select";
 import { cn } from "@/lib/utils";
 import { useParams, useRouter } from "next/navigation";
-import AnimatedPieChart from "@/app/_components/AnimatedPieChart";
-import { useQuery } from "@tanstack/react-query";
-import { getStudentById } from "@/lib/api/student";
-import { getStudentAttendanceSummary, getStudentDailyAttendance } from "@/lib/api/attendance";
-import { getClassAssignmentsBySection } from "@/lib/api/classAssignment";
-import type { ClassAssignmentResponse, DiaryResponse } from "@/types/lms";
-import { MiniCalendar } from "@/app/_components/MiniNepaliCalendarPicker";
-import { MonthYearNavigator } from "@/app/_components/YearMonthNavigator";
-import { convertADToBS, getTodayADString, getTodayBS, getBSMonthDays, convertBSToAD } from "@/lib/nepali-calendar";
-import { findAllFiltered } from "@/lib/api/diary";
 
-interface Subject {
+/* ──────────── Types ──────────── */
+interface SubjectInfo {
   subjectId: number;
   subjectName: string;
-  subjectCode: string;
   teacherName: string;
+  role: string;
+  color: string;
+  icon: "grid" | "flask" | "book" | "globe" | "cpu";
 }
 
-interface Assignment {
-  assignmentId: number;
-  subject: Subject;
+interface ParentInfo {
+  name: string;
+  role: string;
+  phone?: string;
+}
+
+interface AttendanceSummary {
+  present: number;
+  absent: number;
+  leave: number;
+  total: number;
+  percentage: number;
+}
+
+interface SubjectAttendance {
+  subjectName: string;
+  present: number;
+  total: number;
+  percentage: number;
+}
+
+interface DiaryEntry {
+  diaryId: number;
+  subject: string;
+  teacher: string;
   title: string;
-  description: string;
-  dueDate: string;
-  status: "PENDING" | "SUBMITTED" | "GRADED" | "OVERDUE";
-  grade?: string;
-  submittedDate?: string;
+  content: string;
+  color: string;
 }
 
-// Assignment Status Badge
-function AssignmentStatusBadge({ status }: { status: Assignment["status"] }) {
-  const config = {
-    PENDING: { color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", label: "Pending" },
-    SUBMITTED: { color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200", label: "Submitted" },
-    GRADED: { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "Graded" },
-    OVERDUE: { color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Overdue" },
-  }[status];
-  
-  return (
-    <Badge className={cn("border font-medium text-[10px] sm:text-xs", config.bg, config.border, config.color)}>
-      {config.label}
-    </Badge>
-  );
+interface DailyAttendanceRecord {
+  subjectId: number;
+  subjectName: string;
+  teacherName: string;
+  status: "PRESENT" | "ABSENT" | "LEAVE" | "NOT_TAKEN" | undefined;
 }
 
-// Attendance Status Badge
-function AttendanceStatusBadge({ status }: { status: string | undefined }) {
-  if (!status) return (
-    <Badge className="text-[9px] uppercase font-bold text-slate-400 border-slate-200 px-2 py-0.5">
-      Not Taken
-    </Badge>
-  );
+/* ──────────── Mock Data ──────────── */
+const MOCK_SUBJECTS: SubjectInfo[] = [
+  { subjectId: 1, subjectName: "Mathematics", teacherName: "Rajan Koirala", role: "Subject Teacher", color: "#4E6E8E", icon: "grid" },
+  { subjectId: 2, subjectName: "Science", teacherName: "Sabina Rai", role: "Subject Teacher", color: "#4C7A5E", icon: "flask" },
+  { subjectId: 3, subjectName: "English", teacherName: "Priya Thapa", role: "Class Teacher", color: "#B14A3F", icon: "book" },
+  { subjectId: 4, subjectName: "Nepali", teacherName: "Deepak Shrestha", role: "Subject Teacher", color: "#C67E1B", icon: "book" },
+  { subjectId: 5, subjectName: "Social Studies", teacherName: "Anita Gurung", role: "Subject Teacher", color: "#7A5C9E", icon: "globe" },
+  { subjectId: 6, subjectName: "Computer", teacherName: "Nabin Bhattarai", role: "Subject Teacher", color: "#3E8E8E", icon: "cpu" },
+];
 
-  const config = {
-    PRESENT: { color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200", label: "Present" },
-    ABSENT: { color: "text-red-600", bg: "bg-red-50", border: "border-red-200", label: "Absent" },
-    LEAVE: { color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200", label: "Leave" },
-  }[status] || { color: "text-slate-600", bg: "bg-slate-50", border: "border-slate-200", label: status };
-  
-  return (
-    <Badge className={cn("text-[9px] uppercase font-bold border px-2 py-0.5", config.bg, config.border, config.color)}>
-      {config.label}
-    </Badge>
-  );
-}
+const MOCK_PARENTS: ParentInfo[] = [
+  { name: "Bijay Sharma", role: "Father", phone: "9841234567" },
+  { name: "Sunita Sharma", role: "Mother", phone: "9851234567" },
+];
 
-export default function TeacherStudentDetailPageClient() {
-  const router = useRouter();
-  const params = useParams();
-  const studentId = Number(params.studentId);
+const MOCK_STUDENT = {
+  studentName: "Aarohi Sharma",
+  schoolClassName: "6",
+  sectionName: "Gold",
+  dateOfBirth: "2016-03-14",
+  rollNumber: 14,
+  isActive: true,
+};
 
-  const todayBS = getTodayBS();
-  const [selectedNavYear, setSelectedNavYear] = useState<number>(todayBS.year);
-  const [selectedNavMonth, setSelectedNavMonth] = useState<number>(todayBS.month);
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
-  const [attendanceDate, setAttendanceDate] = useState<string>(getTodayADString());
-  const [diaryDate, setDiaryDate] = useState<string>(getTodayADString());
-  const [expandedAssignments, setExpandedAssignments] = useState<Set<number>>(new Set());
+const MOCK_MONTHS = [
+  {
+    label: "Kartik 2082",
+    startOffset: 5,
+    days: 29,
+    pattern: "p p p p p a p p p p h p p l p p p a p p h p p p p p p p p".split(" "),
+  },
+  {
+    label: "Poush 2082",
+    startOffset: 2,
+    days: 30,
+    pattern: "p p p p h a p p p l p h p p p p p a p p h p p p p p f f f f".split(" "),
+  },
+  {
+    label: "Magh 2082",
+    startOffset: 4,
+    days: 29,
+    pattern: Array(29).fill("f"),
+  },
+];
 
-  const {
-    data: studentData,
-    isLoading: isStudentLoading,
-    isError: isStudentError,
-  } = useQuery({
-    queryKey: ["student", studentId],
-    queryFn: () => getStudentById(studentId),
-    enabled: Number.isFinite(studentId),
-  });
-  
-  const sectionId = studentData?.sectionId ?? null;
-  const summaryEnabled = Number.isFinite(studentId) && typeof sectionId === "number";
+const MOCK_SUBJECT_ATTENDANCE: SubjectAttendance[] = [
+  { subjectName: "Mathematics", present: 23, total: 24, percentage: 96 },
+  { subjectName: "Science", present: 20, total: 24, percentage: 83 },
+  { subjectName: "English", present: 24, total: 24, percentage: 100 },
+  { subjectName: "Nepali", present: 19, total: 24, percentage: 79 },
+  { subjectName: "Social Studies", present: 22, total: 24, percentage: 92 },
+  { subjectName: "Computer", present: 21, total: 24, percentage: 88 },
+];
 
-  // Calculate date range from selected month
-  const dateRange = useMemo(() => {
-    const daysInMonth = getBSMonthDays(selectedNavYear, selectedNavMonth);
-    const fromAD = convertBSToAD(selectedNavYear, selectedNavMonth, 1);
-    const toAD = convertBSToAD(selectedNavYear, selectedNavMonth, daysInMonth);
-    const fmt = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    return {
-      fromDate: fmt(fromAD),
-      toDate: fmt(toAD),
-    };
-  }, [selectedNavYear, selectedNavMonth]);
+const MOCK_DIARY: Record<string, DiaryEntry[]> = {
+  "0": [
+    {
+      diaryId: 1,
+      subject: "Science",
+      teacher: "Sabina Rai",
+      title: "States of matter",
+      content:
+        "Read pages 44\u201348 and complete the diagram of the water cycle for tomorrow\u2019s class. Bring colour pencils.",
+      color: "#4C7A5E",
+    },
+    {
+      diaryId: 2,
+      subject: "Mathematics",
+      teacher: "Rajan Koirala",
+      title: "Practice set \u2014 fractions",
+      content:
+        "Finish exercise 4.3, questions 1 to 12. Quiz on fractions expected next week.",
+      color: "#4E6E8E",
+    },
+  ],
+  "-1": [
+    {
+      diaryId: 3,
+      subject: "English",
+      teacher: "Priya Thapa",
+      title: "Grammar \u2014 reported speech",
+      content:
+        "Copied notes on reported speech. Worksheet to be submitted on Thursday.",
+      color: "#B14A3F",
+    },
+  ],
+  "-2": [],
+  "1": [
+    {
+      diaryId: 4,
+      subject: "Nepali",
+      teacher: "Deepak Shrestha",
+      title: "\u0915\u0935\u093F\u0924\u093E \u0935\u093E\u091A\u0928",
+      content:
+        "\u0915\u0915\u094D\u0937\u093E\u092E\u093E \u0915\u0935\u093F\u0924\u093E \u0935\u093E\u091A\u0928 \u0917\u0930\u093F\u092F\u094B\u0964 \u0918\u0930\u092E\u093E \u0915\u0935\u093F\u0924\u093E \u0915\u0923\u094D\u0920\u0938\u094D\u0925 \u092A\u093E\u0930\u094D\u0928\u0941\u0964",
+      color: "#C67E1B",
+    },
+  ],
+};
 
-  const {
-    data: attendanceSummary = [],
-    isLoading: isAttendanceSummaryLoading,
-  } = useQuery({
-    queryKey: ["attendance-summary", studentId, sectionId, selectedSubjectId, dateRange.fromDate, dateRange.toDate],
-    queryFn: () =>
-      getStudentAttendanceSummary({
-        studentId,
-        sectionId: sectionId as number,
-        ...(selectedSubjectId !== "all" && { subjectId: Number(selectedSubjectId) }),
-        ...(dateRange.fromDate && { fromDate: dateRange.fromDate }),
-        ...(dateRange.toDate && { toDate: dateRange.toDate }),
-      }),
-    enabled: summaryEnabled,
-  });
+const MOCK_DAILY_ATTENDANCE: DailyAttendanceRecord[] = [
+  { subjectId: 1, subjectName: "Mathematics", teacherName: "Rajan Koirala", status: "PRESENT" },
+  { subjectId: 2, subjectName: "Science", teacherName: "Sabina Rai", status: "PRESENT" },
+  { subjectId: 3, subjectName: "English", teacherName: "Priya Thapa", status: "PRESENT" },
+  { subjectId: 4, subjectName: "Nepali", teacherName: "Deepak Shrestha", status: "ABSENT" },
+  { subjectId: 5, subjectName: "Social Studies", teacherName: "Anita Gurung", status: "PRESENT" },
+  { subjectId: 6, subjectName: "Computer", teacherName: "Nabin Bhattarai", status: "NOT_TAKEN" },
+];
 
-  const {
-    data: classAssignments = [],
-    isLoading: isClassAssignmentsLoading,
-    isError: isClassAssignmentsError,
-  } = useQuery<ClassAssignmentResponse[]>({
-    queryKey: ["class-assignments", sectionId],
-    queryFn: () => getClassAssignmentsBySection(sectionId as number),
-    enabled: typeof sectionId === "number",
-  });
+const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const TODAY_DAY = 20;
+const BASE_DATE = new Date(2026, 6, 20);
 
-  const {
-    data: dailyAttendance = [],
-    isLoading: isDailyAttendanceLoading,
-  } = useQuery({
-    queryKey: ["daily-attendance", studentId, attendanceDate],
-    queryFn: () => getStudentDailyAttendance(studentId, attendanceDate),
-    enabled: !!studentId && !!attendanceDate,
-  });
-
-  const studentName = studentData?.studentName ?? "Student";
-  const isStudentActive = Boolean(
-    studentData?.schoolClassName && studentData?.sectionName
-  );
-  const studentInitials = studentName
+/* ──────────── Helpers ──────────── */
+function getInitials(name: string): string {
+  return name
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
-    .map((part) => part[0])
-    .join("");
-  
-  const attendanceDateBS = useMemo(() => {
-    if (!attendanceDate) return undefined;
-    return convertADToBS(new Date(attendanceDate));
-  }, [attendanceDate]);
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase();
+}
 
-  const diaryDateBS = useMemo(() => {
-    if (!diaryDate) return undefined;
-    return convertADToBS(new Date(diaryDate));
-  }, [diaryDate]);
+function hexToSoft(hex: string, alpha = "18"): string {
+  return hex + alpha;
+}
 
-  // Diary query
-  const { data: diaryPage, isLoading: diaryLoading } = useQuery({
-    queryKey: ["diary", sectionId, diaryDate],
-    queryFn: () =>
-      findAllFiltered({
-        sectionId: sectionId as number,
-        startDate: diaryDate || undefined,
-        endDate: diaryDate || undefined,
-        pageSize: 100,
-      }),
-    enabled: typeof sectionId === "number" && !!diaryDate,
+function barColor(pct: number): string {
+  if (pct >= 90) return "var(--sage, #4C7A5E)";
+  if (pct >= 75) return "var(--marigold-deep, #C67E1B)";
+  return "var(--brick, #B14A3F)";
+}
+
+function formatDateAD(date: Date): string {
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
   });
-  const diaryEntries: DiaryResponse[] = diaryPage?.content ?? [];
+}
 
-  const subjectOptions = useMemo(() => {
-    const subjectMap = new Map<number, string>();
-    classAssignments.forEach((assignment) => {
-      const name = assignment.subjectName?.trim();
-      if (!name) return;
-      subjectMap.set(assignment.subjectId, name);
-    });
-    return Array.from(subjectMap.entries()).map(([subjectId, subjectName]) => ({
-      subjectId,
-      subjectName,
-    }));
-  }, [classAssignments]);
+/* ──────────── Icon map ──────────── */
+function SubjectIcon({ type, className }: { type: string; className?: string }) {
+  const props = { className: cn("w-5 h-5", className) };
+  switch (type) {
+    case "grid":
+      return <Grid3X3 {...props} />;
+    case "flask":
+      return <FlaskConical {...props} />;
+    case "globe":
+      return <Globe {...props} />;
+    case "cpu":
+      return <Cpu {...props} />;
+    default:
+      return <BookOpen {...props} />;
+  }
+}
 
-  const selectedSubjectName = useMemo(() => {
-    if (selectedSubjectId === "all") return "all";
-    const match = subjectOptions.find(
-      (subject) => String(subject.subjectId) === selectedSubjectId
+/* ──────────── Status Badge ──────────── */
+function AttendanceStatusPill({ status }: { status: string | undefined }) {
+  if (!status || status === "NOT_TAKEN")
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[var(--ink-faint,#9BA3AF)] bg-[var(--paper-deep,#F1E7D4)] px-2.5 py-1 rounded-full">
+        <span className="w-1.5 h-1.5 rounded-full bg-[var(--ink-faint,#9BA3AF)]" />
+        Not Taken
+      </span>
     );
-    return match?.subjectName ?? "Selected Subject";
-  }, [selectedSubjectId, subjectOptions]);
 
-  const hasAttendanceData = attendanceSummary.length > 0;
-
-  const summaryStats = useMemo(() => {
-    if (attendanceSummary.length === 0) return null;
-    
-    const totals = attendanceSummary.reduce(
-      (acc, summary) => {
-        acc.present += summary.presentCount;
-        acc.absent += summary.absentCount;
-        acc.leave += summary.leaveCount;
-        acc.total += summary.totalCount;
-        return acc;
-      },
-      { present: 0, absent: 0, leave: 0, total: 0 }
-    );
-    
-    const percentage =
-      totals.total > 0
-        ? Math.round((totals.present / totals.total) * 100)
-        : 0;
-    
-    return {
-      percentage,
-      present: totals.present,
-      absent: totals.absent,
-      excused: totals.leave,
-      late: 0,
-      total: totals.total,
-    };
-  }, [attendanceSummary]);
-
-  const attendanceStats = summaryStats ?? {
-    percentage: 0,
-    present: 0,
-    absent: 0,
-    excused: 0,
-    late: 0,
-    total: 0,
+  const map: Record<string, { label: string; dotColor: string; textColor: string; bgColor: string }> = {
+    PRESENT: { label: "Present", dotColor: "var(--sage,#4C7A5E)", textColor: "var(--sage,#4C7A5E)", bgColor: "var(--sage-soft,#E3EEE6)" },
+    ABSENT: { label: "Absent", dotColor: "var(--brick,#B14A3F)", textColor: "var(--brick,#B14A3F)", bgColor: "var(--brick-soft,#F5E2DF)" },
+    LEAVE: { label: "Leave", dotColor: "var(--marigold-deep,#C67E1B)", textColor: "var(--marigold-deep,#C67E1B)", bgColor: "var(--marigold-soft,#FBEACD)" },
   };
+  const c = map[status] ?? map.PRESENT;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full"
+      style={{ color: c.textColor, background: c.bgColor }}
+    >
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dotColor }} />
+      {c.label}
+    </span>
+  );
+}
 
-  const subjectPerformance = useMemo(() => {
-    return subjectOptions.map((opt) => {
-      const summary = attendanceSummary.find((s) => s.subjectId === opt.subjectId);
-      return {
-        subjectId: opt.subjectId,
-        subjectName: opt.subjectName,
-        totalCount: summary?.totalCount ?? 0,
-        percentage:
-          summary && summary.totalCount > 0
-            ? Math.round((summary.presentCount / summary.totalCount) * 100)
-            : 0,
-      };
-    });
-  }, [attendanceSummary, subjectOptions]);
+/* ──────────── Animated Ring Chart ──────────── */
+function RingChart({ percentage, size = 180, stroke = 14 }: { percentage: number; size?: number; stroke?: number }) {
+  const [offset, setOffset] = useState(0);
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const target = circ - (circ * percentage) / 100;
 
-  const filteredAssignments: Assignment[] = useMemo(() => {
-    return classAssignments.map(ca => ({
-      assignmentId: ca.classAssignmentId,
-      subject: {
-        subjectId: ca.subjectId,
-        subjectName: ca.subjectName,
-        subjectCode: "",
-        teacherName: ca.teacherName,
-      },
-      title: `${ca.subjectName} - ${ca.teacherRole}`,
-      description: `Class assignment for ${ca.subjectName} taught by ${ca.teacherName}`,
-      dueDate: getTodayADString(),
-      status: "PENDING" as const,
-    }));
-  }, [classAssignments]);
+  useEffect(() => {
+    const t = setTimeout(() => setOffset(target), 120);
+    return () => clearTimeout(t);
+  }, [target]);
 
-  const assignmentCount = filteredAssignments.length;
-  const pendingAssignmentCount = filteredAssignments.filter(
-    (assignment) => assignment.status === "PENDING"
-  ).length;
-  const subjectCount = subjectOptions.length;
-  
-  const toggleAssignment = (id: number) => {
-    setExpandedAssignments(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-  
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("en-NP", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
+  const color =
+    percentage >= 90 ? "var(--sage,#4C7A5E)" : percentage >= 75 ? "var(--marigold-deep,#C67E1B)" : "var(--brick,#B14A3F)";
 
   return (
-    <div className="min-h-screen bg-slate-50/50 pb-16 sm:pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-4 sm:space-y-6">
-        {/* Navigation & Actions */}
-        <div className="flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            className="gap-1.5 sm:gap-2 -ml-2 text-slate-500 hover:text-slate-900 font-medium text-sm"
+    <div className="relative" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line-soft,#EFE6D2)" strokeWidth={stroke} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={circ}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 1s cubic-bezier(.2,.7,.3,1)" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-display font-bold text-slate-900" style={{ fontSize: size * 0.22 }}>
+          {percentage}%
+        </span>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--ink-faint,#9BA3AF)]">Attendance</span>
+      </div>
+    </div>
+  );
+}
+
+/* ──────────── Calendar Cell ──────────── */
+function CalCell({
+  day,
+  code,
+  isToday,
+}: {
+  day: number;
+  code: string;
+  isToday: boolean;
+}) {
+  const statusMap: Record<string, string> = {
+    p: "present",
+    a: "absent",
+    l: "leave",
+    h: "holiday",
+    f: "future",
+  };
+  const cls = statusMap[code] ?? "future";
+  const dotColors: Record<string, string> = {
+    present: "var(--sage,#4C7A5E)",
+    absent: "var(--brick,#B14A3F)",
+    leave: "var(--marigold-deep,#C67E1B)",
+  };
+
+  if (code === "h") {
+    return (
+      <div
+        className={cn(
+          "aspect-square rounded-[10px] flex flex-col items-center justify-center font-mono text-[11px]",
+          "text-[var(--ink-faint,#9BA3AF)]",
+          "bg-[repeating-linear-gradient(135deg,var(--paper-deep,#F1E7D4),var(--paper-deep,#F1E7D4)_4px,var(--line-soft,#EFE6D2)_4px,var(--line-soft,#EFE6D2)_5px)]"
+        )}
+      >
+        {day}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "aspect-square rounded-[10px] flex flex-col items-center justify-center font-mono text-[11px] transition-transform duration-100",
+        "bg-[var(--paper-deep,#F1E7D4)] text-[var(--ink-soft,#667081)]",
+        cls === "future" && "opacity-50",
+        isToday && "border-2 border-[var(--marigold,#E39A2D)] shadow-[0_0_0_3px_var(--marigold-soft,#FBEACD)] font-bold !text-[var(--ink,#23303D)]",
+        "hover:scale-105 cursor-default"
+      )}
+    >
+      {day}
+      {dotColors[cls] && <span className="w-[6px] h-[6px] rounded-full mt-[2px]" style={{ background: dotColors[cls] }} />}
+    </div>
+  );
+}
+
+/* ──────────── Main Component ──────────── */
+export default function ParentStudentDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const studentId = params.studentId as string;
+
+  /* State */
+  const [monthIdx, setMonthIdx] = useState(1);
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("all");
+  const [dayOffset, setDayOffset] = useState(0);
+  const [activeTab, setActiveTab] = useState<"overview" | "attendance" | "classwork" | "subjects">("overview");
+
+  /* Derived */
+  const studentName = MOCK_STUDENT.studentName;
+  const studentInitials = getInitials(studentName);
+  const currentMonth = MOCK_MONTHS[monthIdx];
+
+  const summaryStats: AttendanceSummary = useMemo(() => {
+    const p = currentMonth.pattern.filter((c) => c === "p").length;
+    const a = currentMonth.pattern.filter((c) => c === "a").length;
+    const l = currentMonth.pattern.filter((c) => c === "l").length;
+    const t = p + a + l;
+    return { present: p, absent: a, leave: l, total: t, percentage: t > 0 ? Math.round((p / t) * 100) : 0 };
+  }, [currentMonth]);
+
+  const diaryDate = useMemo(() => {
+    const d = new Date(BASE_DATE);
+    d.setDate(d.getDate() + dayOffset);
+    return d;
+  }, [dayOffset]);
+
+  const diaryEntries = useMemo(() => {
+    return MOCK_DIARY[String(dayOffset)] ?? [];
+  }, [dayOffset]);
+
+  const subjectPerformance = useMemo(() => {
+    if (selectedSubjectId !== "all") {
+      const found = MOCK_SUBJECT_ATTENDANCE.find((s) => s.subjectName === selectedSubjectId);
+      return found ? [found] : [];
+    }
+    return MOCK_SUBJECT_ATTENDANCE;
+  }, [selectedSubjectId]);
+
+  const filteredDailyAttendance = useMemo(() => {
+    if (selectedSubjectId === "all") return MOCK_DAILY_ATTENDANCE;
+    return MOCK_DAILY_ATTENDANCE.filter(
+      (d) => d.subjectName === selectedSubjectId
+    );
+  }, [selectedSubjectId]);
+
+  const glanceDots = useMemo(() => {
+    const seq = [
+      "present", "present", "present", "present", "present", "absent",
+      "present", "present", "present", "present", "holiday", "present",
+      "present", "leave", "present", "present", "present", "absent",
+      "present", "present", "holiday", "present", "present", "present",
+    ];
+    const dotColors: Record<string, string> = {
+      present: "var(--sage,#4C7A5E)",
+      absent: "var(--brick,#B14A3F)",
+      leave: "var(--marigold,#E39A2D)",
+      holiday: "var(--line,#E6D9BE)",
+    };
+    return seq;
+  }, []);
+
+  const tabItems = [
+    { id: "overview" as const, label: "Overview", icon: TrendingUp },
+    { id: "attendance" as const, label: "Attendance", icon: CalendarDays },
+    { id: "classwork" as const, label: "Classwork", icon: BookOpen },
+    { id: "subjects" as const, label: "Subjects & Teachers", icon: GraduationCap },
+  ];
+
+  return (
+    <div className="min-h-screen pb-16 sm:pb-20" style={{ background: "var(--paper, #FAF4E8)", backgroundImage: "radial-gradient(circle at 1px 1px, rgba(35,48,61,0.035) 1px, transparent 0)", backgroundSize: "22px 22px" }}>
+      <style>{`
+        .font-display { font-family: 'Fraunces', serif; }
+        .font-mono-custom { font-family: 'IBM Plex Mono', monospace; }
+        ::selection { background: var(--marigold-soft, #FBEACD); color: var(--marigold-deep, #C67E1B); }
+      `}</style>
+
+      <div className="max-w-[980px] mx-auto px-4 sm:px-5 pt-4 sm:pt-5">
+        {/* ──── Top Bar ──── */}
+        <div className="flex items-center justify-between mb-2.5 sm:mb-3">
+          <button
             onClick={() => router.back()}
+            className="flex items-center gap-1.5 sm:gap-2 bg-transparent border-none cursor-pointer text-[var(--ink-soft,#667081)] hover:text-[var(--ink,#23303D)] hover:bg-[rgba(35,48,61,0.05)] font-semibold text-[13px] sm:text-[13.5px] py-2 px-2.5 sm:px-3 rounded-full transition-colors duration-150"
           >
-            <ChevronRight className="h-4 w-4 rotate-180" />
-            <span className="hidden sm:inline">Go Back</span>
+            <ChevronLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Back to my children</span>
             <span className="sm:hidden">Back</span>
-          </Button>
+          </button>
+          <div className="flex items-center gap-2 font-mono-custom text-[10.5px] sm:text-[11px] tracking-[0.06em] uppercase text-[var(--ink-faint,#9BA3AF)]">
+            <span className="w-[6px] h-[6px] rounded-full bg-[var(--marigold,#E39A2D)]" />
+            GyanJyoti School
+          </div>
         </div>
 
-        {/* Student Profile Section */}
-        <div className="relative">
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/[0.03] via-transparent to-pink-500/[0.03] rounded-[1.5rem] sm:rounded-[2rem]" />
-          <div className="relative rounded-[1.5rem] sm:rounded-[2rem] border border-slate-200 bg-white p-4 sm:p-6 md:p-8">
-            <div className="flex flex-col items-center sm:flex-row gap-4 sm:gap-6 md:gap-8 sm:items-start">
-              {/* Avatar */}
-              <div className="relative group">
-                <div className="w-20 h-20 sm:w-24 sm:h-24 md:w-28 md:h-28 rounded-xl sm:rounded-2xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center ring-4 ring-violet-50 transition-transform group-hover:scale-105 duration-300">
-                  <span className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">
-                    {studentInitials || "ST"}
-                  </span>
-                </div>
-                <div className="absolute -bottom-2 -right-2 w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 rounded-lg sm:rounded-xl bg-emerald-500 border-[3px] sm:border-4 border-white flex items-center justify-center shadow-lg">
-                  <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 md:h-5 md:w-5 text-white" />
-                </div>
+        {/* ──── Hero Card ──── */}
+        <div
+          className="relative overflow-hidden rounded-[22px] sm:rounded-[26px] p-5 sm:p-6 md:p-7 mb-5 sm:mb-6"
+          style={{
+            background: "var(--paper-card, #FFFDF8)",
+            border: "1px solid var(--line, #E6D9BE)",
+            boxShadow: "0 1px 2px rgba(35,48,61,0.04), 0 10px 26px -14px rgba(35,48,61,0.18)",
+          }}
+        >
+          {/* Top gradient bar */}
+          <div className="absolute top-0 left-0 right-0 h-[5px] opacity-90" style={{ background: "linear-gradient(90deg, var(--marigold,#E39A2D), var(--sage,#4C7A5E) 60%, var(--sky,#4E6E8E))" }} />
+
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-5 md:gap-6">
+            {/* Avatar */}
+            <div
+              className="w-[68px] h-[68px] sm:w-[76px] sm:h-[76px] rounded-[18px] sm:rounded-[22px] flex items-center justify-center flex-shrink-0 font-display font-semibold text-[24px] sm:text-[28px] text-white"
+              style={{
+                background: "linear-gradient(150deg, var(--marigold,#E39A2D), #D6892A 55%, var(--brick,#B14A3F))",
+                boxShadow: "0 8px 30px -12px rgba(196,126,27,0.35)",
+              }}
+            >
+              {studentInitials}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 text-center sm:text-left min-w-0 w-full">
+              <p className="font-mono-custom text-[10.5px] sm:text-[11px] uppercase tracking-[0.08em] font-medium text-[var(--marigold-deep,#C67E1B)] mb-1">
+                Report Book
+              </p>
+              <h1
+                className="font-display font-semibold text-[clamp(24px,4.5vw,34px)] leading-[1.05] text-[var(--ink,#23303D)] mb-2 sm:mb-2.5"
+              >
+                {studentName}
+              </h1>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-2.5">
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11.5px] sm:text-[12.5px] font-semibold px-2.5 sm:px-3 py-1.5 sm:py-[6px] rounded-full"
+                  style={{
+                    background: "var(--sage-soft,#E3EEE6)",
+                    color: "var(--sage,#4C7A5E)",
+                  }}
+                >
+                  <GraduationCap className="w-[13px] h-[13px]" />
+                  Class {MOCK_STUDENT.schoolClassName} · Section {MOCK_STUDENT.sectionName}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11.5px] sm:text-[12.5px] font-semibold px-2.5 sm:px-3 py-1.5 sm:py-[6px] rounded-full border"
+                  style={{
+                    background: "var(--paper-deep,#F1E7D4)",
+                    color: "var(--ink-soft,#667081)",
+                    borderColor: "var(--line-soft,#EFE6D2)",
+                  }}
+                >
+                  <CalendarDays className="w-[13px] h-[13px]" />
+                  Born 14 Mar 2016
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5 text-[11.5px] sm:text-[12.5px] font-semibold px-2.5 sm:px-3 py-1.5 sm:py-[6px] rounded-full border"
+                  style={{
+                    background: "var(--paper-deep,#F1E7D4)",
+                    color: "var(--ink-soft,#667081)",
+                    borderColor: "var(--line-soft,#EFE6D2)",
+                  }}
+                >
+                  <span className="font-mono-custom text-[11px]">#{MOCK_STUDENT.rollNumber}</span>
+                  Roll No.
+                </span>
               </div>
-              
-              {/* Info */}
-              <div className="flex-1 text-center sm:text-left w-full">
-                <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between flex-wrap gap-3 sm:gap-4">
+
+              {/* Note */}
+              <p className="font-display italic font-normal text-[14px] sm:text-[15.5px] leading-[1.5] text-[var(--ink-soft,#667081)] mt-4 sm:mt-[18px] pt-3.5 sm:pt-4 border-t border-dashed" style={{ borderColor: "var(--line,#E6D9BE)" }}>
+                Aarohi has been present for{" "}
+                <b className="text-[var(--ink,#23303D)] font-semibold not-italic">{summaryStats.present} of {summaryStats.total}</b>{" "}
+                school days this month and has{" "}
+                <b className="text-[var(--ink,#23303D)] font-semibold not-italic">{diaryEntries.length} diary {diaryEntries.length === 1 ? "entry" : "entries"}</b>{" "}
+                {diaryEntries.length > 0 ? "waiting for you today — take a look below." : "for today."}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ──── Tabs ──── */}
+        <div className="flex gap-1.5 sm:gap-[6px] overflow-x-auto pb-0 scrollbar-none" style={{ scrollbarWidth: "none" }}>
+          {tabItems.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex-shrink-0 flex items-center gap-1.5 sm:gap-[7px] font-semibold text-[12.5px] sm:text-[13.5px] py-2.5 sm:py-[11px] px-3 sm:px-4 rounded-t-[14px] cursor-pointer transition-all duration-150 relative border",
+                activeTab === tab.id
+                  ? "bg-[var(--paper-card,#FFFDF8)] text-[var(--ink,#23303D)] border-[var(--line,#E6D9BE)] border-b-transparent shadow-[0_-4px_14px_-8px_rgba(35,48,61,0.15)]"
+                  : "bg-[var(--paper-deep,#F1E7D4)] text-[var(--ink-soft,#667081)] border-[var(--line-soft,#EFE6D2)] border-b-transparent hover:text-[var(--ink,#23303D)]"
+              )}
+              style={{ top: "1px" }}
+            >
+              <tab.icon
+                className={cn(
+                  "w-[15px] h-[15px]",
+                  activeTab === tab.id ? "text-[var(--marigold-deep,#C67E1B)]" : "opacity-75"
+                )}
+              />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* ──── Panel Shell ──── */}
+        <div
+          className="min-h-[340px] rounded-b-[20px] sm:rounded-b-[20px] rounded-tr-[20px] sm:rounded-tr-none overflow-hidden"
+          style={{
+            background: "var(--paper-card, #FFFDF8)",
+            border: "1px solid var(--line, #E6D9BE)",
+            boxShadow: "0 1px 2px rgba(35,48,61,0.04), 0 10px 26px -14px rgba(35,48,61,0.18)",
+          }}
+        >
+          {/* ════════ OVERVIEW ════════ */}
+          {activeTab === "overview" && (
+            <div className="p-4 sm:p-5 md:p-6 animate-[fade_.35s_ease]">
+              <div className="mb-5 sm:mb-6">
+                <h3 className="font-display font-semibold text-[19px] sm:text-[21px] text-[var(--ink,#23303D)] mb-1">
+                  This month at a glance
+                </h3>
+                <p className="text-[13px] sm:text-[13.5px] text-[var(--ink-soft,#667081)]">
+                  A quick summary of how Aarohi&apos;s month is going.
+                </p>
+              </div>
+
+              {/* Glance cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3 mb-5 sm:mb-6">
+                {/* Attendance */}
+                <div
+                  className="flex sm:flex-col items-center sm:items-start justify-between sm:justify-start gap-2 sm:gap-0 rounded-[16px] sm:rounded-[18px] p-3 sm:p-4 border"
+                  style={{ background: "var(--paper-deep,#F1E7D4)", borderColor: "var(--line-soft,#EFE6D2)" }}
+                >
                   <div>
-                    <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-slate-900">{studentName}</h2>
-                    <div className="flex flex-col sm:flex-row items-center gap-1.5 sm:gap-3 mt-1.5 sm:mt-2 text-xs sm:text-sm">
-                      {isStudentActive && (
-                        <span className="flex items-center gap-1.5 font-semibold px-2 sm:px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg">
-                          <GraduationCap className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                          <span className="whitespace-nowrap">
-                            Class {studentData?.schoolClassName} • Section {studentData?.sectionName}
-                          </span>
-                        </span>
-                      )}
-                      <span className="hidden sm:inline w-1.5 h-1.5 rounded-full bg-slate-200" />
-                      <span className="font-semibold text-slate-600">
-                        DOB: {studentData?.dateOfBirth ? formatDate(studentData.dateOfBirth) : "-"}
-                      </span>
+                    <div className="font-display font-bold text-[22px] sm:text-[26px] leading-none text-[var(--sage,#4C7A5E)]">
+                      {summaryStats.percentage}%
+                    </div>
+                    <div className="text-[10.5px] sm:text-[11.5px] uppercase tracking-[0.05em] font-semibold text-[var(--ink-faint,#9BA3AF)] mt-1.5 sm:mt-[6px]">
+                      Attendance
+                    </div>
+                    <div className="text-[11.5px] sm:text-[12.5px] text-[var(--ink-soft,#667081)] mt-1">
+                      {summaryStats.present} present · {summaryStats.absent} absent · {summaryStats.leave} leave
                     </div>
                   </div>
-                  <Badge
-                    className={cn(
-                      "h-7 sm:h-8 px-3 sm:px-4 text-xs sm:text-sm font-bold rounded-full",
-                      isStudentActive
-                        ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20 hover:bg-emerald-500/20"
-                        : "bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-200"
-                    )}
-                  >
-                    {isStudentActive ? "Active Student" : "Inactive Student"}
-                  </Badge>
+                  <div className="hidden sm:flex flex-wrap gap-[3px] mt-2.5">
+                    {glanceDots.map((d, i) => (
+                      <span
+                        key={i}
+                        className="w-[7px] h-[7px] rounded-full"
+                        style={{
+                          background:
+                            d === "present"
+                              ? "var(--sage,#4C7A5E)"
+                              : d === "absent"
+                              ? "var(--brick,#B14A3F)"
+                              : d === "leave"
+                              ? "var(--marigold,#E39A2D)"
+                              : "var(--line,#E6D9BE)",
+                        }}
+                      />
+                    ))}
+                  </div>
                 </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-4 sm:mt-6 md:mt-8">
-                  {(studentData?.parents ?? []).map((parent, index) => (
-                    <div key={`${parent.parentName}-${parent.parentNumber}-${index}`} className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100 transition-colors hover:border-slate-200">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
-                        <Users className="h-4 w-4 sm:h-5 sm:w-5 text-violet-600" />
+
+                {/* Subjects */}
+                <div
+                  className="flex sm:flex-col items-center sm:items-start justify-between sm:justify-start rounded-[16px] sm:rounded-[18px] p-3 sm:p-4 border"
+                  style={{ background: "var(--paper-deep,#F1E7D4)", borderColor: "var(--line-soft,#EFE6D2)" }}
+                >
+                  <div>
+                    <div className="font-display font-bold text-[22px] sm:text-[26px] leading-none text-[var(--marigold-deep,#C67E1B)]">
+                      {MOCK_SUBJECTS.length}
+                    </div>
+                    <div className="text-[10.5px] sm:text-[11.5px] uppercase tracking-[0.05em] font-semibold text-[var(--ink-faint,#9BA3AF)] mt-1.5 sm:mt-[6px]">
+                      Subjects
+                    </div>
+                    <div className="text-[11.5px] sm:text-[12.5px] text-[var(--ink-soft,#667081)] mt-1">
+                      Across {new Set(MOCK_SUBJECTS.map((s) => s.teacherName)).size} teachers this term
+                    </div>
+                  </div>
+                </div>
+
+                {/* Needs attention */}
+                <div
+                  className="flex sm:flex-col items-center sm:items-start justify-between sm:justify-start rounded-[16px] sm:rounded-[18px] p-3 sm:p-4 border"
+                  style={{ background: "var(--paper-deep,#F1E7D4)", borderColor: "var(--line-soft,#EFE6D2)" }}
+                >
+                  <div>
+                    <div className="font-display font-bold text-[22px] sm:text-[26px] leading-none text-[var(--brick,#B14A3F)]">
+                      {summaryStats.absent}
+                    </div>
+                    <div className="text-[10.5px] sm:text-[11.5px] uppercase tracking-[0.05em] font-semibold text-[var(--ink-faint,#9BA3AF)] mt-1.5 sm:mt-[6px]">
+                      Needs attention
+                    </div>
+                    <div className="text-[11.5px] sm:text-[12.5px] text-[var(--ink-soft,#667081)] mt-1">
+                      {summaryStats.absent} {summaryStats.absent === 1 ? "absence" : "absences"} this month
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Today's classwork preview */}
+              <div className="mb-5 sm:mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-display text-[15px] sm:text-[16px] font-semibold text-[var(--ink,#23303D)]">
+                    Today&apos;s classwork
+                  </h4>
+                  <button
+                    onClick={() => setActiveTab("classwork")}
+                    className="bg-transparent border-none text-[var(--marigold-deep,#C67E1B)] font-semibold text-[12px] sm:text-[12.5px] cursor-pointer flex items-center gap-1 p-1 hover:underline"
+                  >
+                    Open classwork
+                    <ChevronLeft className="w-3 h-3 rotate-180" />
+                  </button>
+                </div>
+                {diaryEntries.length > 0 ? (
+                  <div
+                    className="flex gap-3 sm:gap-3.5 items-start rounded-[16px] sm:rounded-[18px] p-3.5 sm:p-4 border"
+                    style={{
+                      background: "var(--paper-deep,#F1E7D4)",
+                      borderColor: "var(--line-soft,#EFE6D2)",
+                    }}
+                  >
+                    <div
+                      className="w-[38px] h-[38px] rounded-[11px] flex-shrink-0 flex items-center justify-center"
+                      style={{ background: "var(--sky-soft,#E5ECF2)", color: "var(--sky,#4E6E8E)" }}
+                    >
+                      <FileText className="w-[18px] h-[18px]" />
+                    </div>
+                    <div className="min-w-0">
+                      <span
+                        className="inline-block text-[10.5px] sm:text-[11px] font-semibold px-2 py-[2px] rounded-full mb-1.5"
+                        style={{ background: "var(--marigold-soft,#FBEACD)", color: "var(--marigold-deep,#C67E1B)" }}
+                      >
+                        {diaryEntries[0].subject}
+                      </span>
+                      <p className="font-bold text-[13.5px] sm:text-[14px] text-[var(--ink,#23303D)] mb-1 leading-tight">
+                        {diaryEntries[0].title}
+                      </p>
+                      <p className="text-[12.5px] sm:text-[13px] text-[var(--ink-soft,#667081)] leading-[1.5]">
+                        {diaryEntries[0].content}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="text-center py-8 sm:py-10 rounded-[16px] sm:rounded-[18px] border-2 border-dashed"
+                    style={{ background: "var(--paper-deep,#F1E7D4)", borderColor: "var(--line,#E6D9BE)" }}
+                  >
+                    <p className="font-bold text-[14px] sm:text-[14.5px] text-[var(--ink,#23303D)]">No classwork for today</p>
+                    <p className="text-[12px] sm:text-[12.5px] text-[var(--ink-faint,#9BA3AF)] mt-1">Check back once teachers add notes.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Family on record */}
+              <div>
+                <h4 className="font-display text-[15px] sm:text-[16px] font-semibold text-[var(--ink,#23303D)] mb-3">
+                  Family on record
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                  {MOCK_PARENTS.map((parent) => (
+                    <div
+                      key={parent.name}
+                      className="flex items-center gap-2.5 sm:gap-3 rounded-[16px] sm:rounded-[18px] p-3 sm:p-3.5 border"
+                      style={{
+                        background: "var(--paper-deep,#F1E7D4)",
+                        borderColor: "var(--line-soft,#EFE6D2)",
+                      }}
+                    >
+                      <div
+                        className="w-[34px] h-[34px] rounded-full flex-shrink-0 flex items-center justify-center font-bold text-[12px]"
+                        style={{ background: "var(--sage-soft,#E3EEE6)", color: "var(--sage,#4C7A5E)" }}
+                      >
+                        {getInitials(parent.name)}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Parent</p>
-                        <p className="text-xs sm:text-sm font-bold text-slate-700 truncate">{parent.parentName}</p>
-                        <p className="text-[10px] font-semibold text-slate-500">{parent.parentNumber}</p>
+                        <div className="font-bold text-[12.5px] sm:text-[13px] text-[var(--ink,#23303D)]">{parent.name}</div>
+                        <div className="font-mono-custom text-[10.5px] sm:text-[11.5px] text-[var(--ink-faint,#9BA3AF)]">
+                          {parent.role}{parent.phone ? ` · ${parent.phone}` : ""}
+                        </div>
                       </div>
                     </div>
                   ))}
-                  {isStudentError && (
-                    <div className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-red-50 border border-red-100">
-                      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
-                        <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] uppercase tracking-wider font-bold text-red-400">Student</p>
-                        <p className="text-xs sm:text-sm font-bold text-red-700 truncate">Unable to load</p>
-                        <p className="text-[10px] font-semibold text-red-500">Try again later</p>
-                      </div>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100 transition-colors hover:border-slate-200">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
-                      <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Email Address</p>
-                      <p className="text-xs sm:text-sm font-semibold text-slate-700 truncate">Not available</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2.5 sm:gap-3 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100 transition-colors hover:border-slate-200">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-purple-600" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-wider font-bold text-slate-400">Address</p>
-                      <p className="text-xs sm:text-sm font-semibold text-slate-700 truncate">Not available</p>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          )}
 
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {[
-            { 
-              icon: CheckCircle2, 
-              label: "Attendance", 
-              value: isAttendanceSummaryLoading ? "..." : hasAttendanceData ? `${attendanceStats.percentage}%` : "—",
-              color: "emerald",
-              subtext: hasAttendanceData ? `${attendanceStats.present}/${attendanceStats.total} days present` : "No records"
-            },
-            { 
-              icon: FileText, 
-              label: "Assignments", 
-              value: assignmentCount,
-              color: "blue",
-              subtext: `${pendingAssignmentCount} pending this month`
-            },
-            { 
-              icon: BookOpen, 
-              label: "Subjects", 
-              value: subjectCount,
-              color: "violet",
-              subtext: "Enrolled"
-            },
-            { 
-              icon: TrendingUp, 
-              label: "Avg Grade", 
-              value: "A-",
-              color: "amber",
-              subtext: "Overall Score"
-            },
-          ].map((stat, idx) => (
-            <div key={idx} className="group relative overflow-hidden rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 md:p-5 transition-all hover:shadow-lg">
-              <div className={cn(
-                "absolute top-0 right-0 w-16 sm:w-20 h-16 sm:h-20 rounded-bl-[2rem] sm:rounded-bl-[3rem] -mr-4 sm:-mr-6 -mt-4 sm:-mt-6 opacity-[0.03]",
-                stat.color === "emerald" && "bg-emerald-500",
-                stat.color === "blue" && "bg-blue-500",
-                stat.color === "violet" && "bg-violet-500",
-                stat.color === "amber" && "bg-amber-500",
-              )} />
-              <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-                <div className={cn(
-                  "w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform",
-                  stat.color === "emerald" && "bg-emerald-500/10 text-emerald-600",
-                  stat.color === "blue" && "bg-blue-500/10 text-blue-600",
-                  stat.color === "violet" && "bg-violet-500/10 text-violet-600",
-                  stat.color === "amber" && "bg-amber-500/10 text-amber-600",
-                )}>
-                  <stat.icon className="h-4 w-4 sm:h-5 sm:w-5" />
+          {/* ════════ ATTENDANCE ════════ */}
+          {activeTab === "attendance" && (
+            <div className="p-4 sm:p-5 md:p-6 animate-[fade_.35s_ease]">
+              <div className="mb-5 sm:mb-6">
+                <h3 className="font-display font-semibold text-[19px] sm:text-[21px] text-[var(--ink,#23303D)] mb-1">
+                  Attendance
+                </h3>
+                <p className="text-[13px] sm:text-[13.5px] text-[var(--ink-soft,#667081)]">
+                  Every school day this month, at a glance.
+                </p>
+              </div>
+
+              {/* Subject filter */}
+              <div className="flex flex-wrap gap-2 mb-4 sm:mb-5">
+                {["all", ...MOCK_SUBJECTS.map((s) => s.subjectName)].map((name) => (
+                  <button
+                    key={name}
+                    onClick={() => setSelectedSubjectId(name === "all" ? "all" : name)}
+                    className={cn(
+                      "font-semibold text-[11.5px] sm:text-[12.5px] px-3 sm:px-[13px] py-1.5 sm:py-[7px] rounded-full cursor-pointer transition-all duration-150 border",
+                      selectedSubjectId === name
+                        ? "bg-[var(--ink,#23303D)] text-[var(--paper,#FAF4E8)] border-[var(--ink,#23303D)]"
+                        : "bg-[var(--paper-deep,#F1E7D4)] text-[var(--ink-soft,#667081)] border-[var(--line-soft,#EFE6D2)] hover:border-[var(--marigold,#E39A2D)] hover:text-[var(--ink,#23303D)]"
+                    )}
+                  >
+                    {name === "all" ? "All subjects" : name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Calendar card */}
+              <div
+                className="relative rounded-[16px] sm:rounded-[18px] p-4 sm:p-[18px] border mb-5 sm:mb-6"
+                style={{
+                  background: "var(--paper-card, #FFFDF8)",
+                  borderColor: "var(--line, #E6D9BE)",
+                }}
+              >
+                {/* Calendar ring decorations */}
+                <div className="absolute top-0 left-0 right-0 flex justify-center gap-5 sm:gap-[26px]" style={{ transform: "translateY(-9px)" }}>
+                  {[...Array(5)].map((_, i) => (
+                    <span
+                      key={i}
+                      className="w-[10px] h-[10px] rounded-full"
+                      style={{
+                        background: "var(--paper, #FAF4E8)",
+                        border: "2.5px solid var(--line, #E6D9BE)",
+                      }}
+                    />
+                  ))}
                 </div>
-                <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">{stat.label}</p>
-              </div>
-              <p className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{stat.value}</p>
-              <p className="text-[10px] sm:text-[11px] font-semibold text-slate-400 mt-1">{stat.subtext}</p>
-            </div>
-          ))}
-        </div>
-        
-        {/* Attendance Statistics Section */}
-        <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Attendance Overview</h3>
-                <p className="text-xs sm:text-sm font-semibold text-slate-500">Comprehensive analytical view of records</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <Select value={selectedSubjectId} onValueChange={setSelectedSubjectId}>
-                  <SelectTrigger className="w-[140px] sm:w-[160px] h-9 sm:h-10 rounded-xl bg-white border-slate-200 font-semibold text-slate-700 text-xs sm:text-sm">
-                    <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
-                    <SelectValue placeholder="All Subjects" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="all">All Subjects</SelectItem>
-                    {subjectOptions.map((subject) => (
-                      <SelectItem
-                        key={subject.subjectId}
-                        value={String(subject.subjectId)}
-                      >
-                        {subject.subjectName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <MonthYearNavigator
-                  value={{ year: selectedNavYear, month: selectedNavMonth }}
-                  onChange={(year, month) => {
-                    setSelectedNavYear(year);
-                    setSelectedNavMonth(month);
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const bs = getTodayBS();
-                    setSelectedNavYear(bs.year);
-                    setSelectedNavMonth(bs.month);
-                  }}
-                  className="shrink-0 gap-1.5 rounded-xl text-xs sm:text-sm h-9 sm:h-10"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span>Reset</span>
-                </Button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-4 sm:p-6">
-            {!hasAttendanceData ? (
-              <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <PieChart className="h-6 w-6 sm:h-8 sm:w-8 text-slate-300" />
+
+                {/* Calendar nav */}
+                <div className="flex items-center justify-between mb-4">
+                  <span className="font-display italic font-medium text-[17px] sm:text-[19px] text-[var(--ink,#23303D)]">
+                    {currentMonth.label}
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => setMonthIdx(Math.max(0, monthIdx - 1))}
+                      className="w-[30px] h-[30px] rounded-full border flex items-center justify-center cursor-pointer transition-all duration-150"
+                      style={{
+                        background: "var(--paper-deep,#F1E7D4)",
+                        borderColor: "var(--line-soft,#EFE6D2)",
+                        color: "var(--ink-soft,#667081)",
+                      }}
+                      aria-label="Previous month"
+                    >
+                      <ChevronLeft className="w-[15px] h-[15px]" />
+                    </button>
+                    <button
+                      onClick={() => setMonthIdx(Math.min(MOCK_MONTHS.length - 1, monthIdx + 1))}
+                      className="w-[30px] h-[30px] rounded-full border flex items-center justify-center cursor-pointer transition-all duration-150"
+                      style={{
+                        background: "var(--paper-deep,#F1E7D4)",
+                        borderColor: "var(--line-soft,#EFE6D2)",
+                        color: "var(--ink-soft,#667081)",
+                      }}
+                      aria-label="Next month"
+                    >
+                      <ChevronLeft className="w-[15px] h-[15px] rotate-180" />
+                    </button>
+                  </div>
                 </div>
-                <p className="text-slate-500 font-bold text-base sm:text-lg tracking-tight">No attendance data yet</p>
-                <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-1">Attendance will appear once records are added</p>
+
+                {/* Calendar grid */}
+                <div className="grid grid-cols-7 gap-1.5 sm:gap-[6px]">
+                  {WEEKDAYS.map((w) => (
+                    <div key={w} className="text-center font-mono-custom text-[10px] sm:text-[10.5px] font-medium text-[var(--ink-faint,#9BA3AF)] pb-1.5 sm:pb-[6px]">
+                      {w}
+                    </div>
+                  ))}
+                  {Array.from({ length: currentMonth.startOffset }).map((_, i) => (
+                    <div key={`e-${i}`} className="aspect-square" />
+                  ))}
+                  {Array.from({ length: currentMonth.days }).map((_, i) => {
+                    const day = i + 1;
+                    const code = currentMonth.pattern[i] ?? "f";
+                    const isToday = currentMonth.label === "Poush 2082" && day === TODAY_DAY;
+                    return <CalCell key={day} day={day} code={code} isToday={isToday} />;
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="flex flex-wrap gap-3 sm:gap-[14px] mt-4">
+                  {[
+                    { label: "Present", color: "var(--sage,#4C7A5E)" },
+                    { label: "Absent", color: "var(--brick,#B14A3F)" },
+                    { label: "Leave", color: "var(--marigold,#E39A2D)" },
+                    { label: "Holiday", color: "var(--line,#E6D9BE)" },
+                  ].map((l) => (
+                    <div key={l.label} className="flex items-center gap-1.5 text-[11.5px] sm:text-[12px] font-medium text-[var(--ink-soft,#667081)]">
+                      <span className="w-[9px] h-[9px] rounded-full" style={{ background: l.color }} />
+                      {l.label}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ) : (
-              <div className="grid lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-                {/* Pie Chart Analysis */}
+
+              {/* Ring chart + subject bars */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
                 <div className="lg:col-span-5 flex flex-col items-center">
                   <div className="sm:hidden">
-                    <AnimatedPieChart 
-                      percentage={attendanceStats.percentage} 
-                      size={160}
-                      strokeWidth={14}
-                    />
+                    <RingChart percentage={summaryStats.percentage} size={150} stroke={12} />
                   </div>
                   <div className="hidden sm:block">
-                    <AnimatedPieChart 
-                      percentage={attendanceStats.percentage} 
-                      size={200}
-                      strokeWidth={16}
-                    />
+                    <RingChart percentage={summaryStats.percentage} size={190} stroke={15} />
                   </div>
-                  <p className="mt-4 sm:mt-6 text-xs sm:text-sm text-center text-slate-500 font-semibold max-w-xs leading-relaxed">
-                    {selectedSubjectId === "all" 
-                      ? "Overall student engagement score across all enrolled subjects for the selected period."
-                      : `Specific subject engagement for ${selectedSubjectName}.`
-                    }
+                  <p className="mt-4 text-[12px] sm:text-[13px] text-center text-[var(--ink-soft,#667081)] font-medium max-w-[280px] leading-relaxed">
+                    {selectedSubjectId === "all"
+                      ? "Overall student engagement across all enrolled subjects for the selected period."
+                      : `Subject engagement for ${selectedSubjectId}.`}
                   </p>
                 </div>
-                
-                {/* Right Column: Dynamic Stats or Subject Bars */}
-                <div className="lg:col-span-7 space-y-4 sm:space-y-6">
+
+                <div className="lg:col-span-7 space-y-3.5 sm:space-y-4">
                   {selectedSubjectId === "all" ? (
                     <>
-                      <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900 flex items-center gap-2">
-                        <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-violet-600" />
+                      <h4 className="font-display text-[15px] sm:text-[16px] font-semibold text-[var(--ink,#23303D)] flex items-center gap-2">
+                        <BarChart3 className="w-4 h-4 text-[var(--marigold-deep,#C67E1B)]" />
                         Subject Performance
-                      </h3>
-                      <div className="space-y-3 sm:space-y-4">
-                        {subjectPerformance.map((subject) => (
-                            <div key={subject.subjectId}>
-                              <div className="flex items-center justify-between mb-1 sm:mb-1.5">
-                                <span className="text-xs sm:text-sm font-bold text-slate-700">{subject.subjectName}</span>
-                                <span className={cn(
-                                  "text-xs sm:text-sm font-black",
-                                  subject.percentage >= 75 ? "text-emerald-600" : subject.percentage >= 60 ? "text-amber-600" : "text-red-600"
-                                )}>
-                                  {subject.percentage}%
-                                </span>
-                              </div>
-                              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div 
-                                  className={cn(
-                                    "h-full rounded-full transition-all",
-                                    subject.percentage >= 75 ? "bg-emerald-500" : 
-                                    subject.percentage >= 60 ? "bg-amber-500" : 
-                                    "bg-red-500"
-                                  )}
-                                  style={{ width: `${subject.percentage}%` }}
-                                />
-                              </div>
-                            </div>
-                          ))}
-                      </div>
+                      </h4>
+                      {subjectPerformance.map((s) => (
+                        <div key={s.subjectName}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[12.5px] sm:text-[13px] font-semibold text-[var(--ink,#23303D)]">{s.subjectName}</span>
+                            <span className="font-mono-custom text-[12px] sm:text-[13px] font-semibold" style={{ color: barColor(s.percentage) }}>
+                              {s.percentage}%
+                            </span>
+                          </div>
+                          <div className="h-[7px] rounded-full overflow-hidden" style={{ background: "var(--paper-deep,#F1E7D4)" }}>
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{ width: `${s.percentage}%`, background: barColor(s.percentage) }}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                       {[
-                        { label: "Present", value: attendanceStats.present, color: "emerald" },
-                        { label: "Absent", value: attendanceStats.absent, color: "red" },
-                        { label: "Leave", value: attendanceStats.excused + attendanceStats.late, color: "amber" },
-                        { label: "Total", value: attendanceStats.total, color: "slate" },
+                        { label: "Present", value: summaryStats.present, color: "var(--sage,#4C7A5E)", bg: "var(--sage-soft,#E3EEE6)" },
+                        { label: "Absent", value: summaryStats.absent, color: "var(--brick,#B14A3F)", bg: "var(--brick-soft,#F5E2DF)" },
+                        { label: "Leave", value: summaryStats.leave, color: "var(--marigold-deep,#C67E1B)", bg: "var(--marigold-soft,#FBEACD)" },
+                        { label: "Total", value: summaryStats.total, color: "var(--ink-soft,#667081)", bg: "var(--paper-deep,#F1E7D4)" },
                       ].map((stat) => (
-                        <div key={stat.label} className={cn(
-                          "p-3 sm:p-4 rounded-xl sm:rounded-2xl border text-center transition-all",
-                          stat.color === "emerald" && "bg-emerald-50 border-emerald-100",
-                          stat.color === "red" && "bg-red-50 border-red-100",
-                          stat.color === "amber" && "bg-amber-50 border-amber-100",
-                          stat.color === "slate" && "bg-slate-50 border-slate-200",
-                        )}>
-                          <p className={cn(
-                            "text-xl sm:text-2xl font-black",
-                            stat.color === "emerald" && "text-emerald-600",
-                            stat.color === "red" && "text-red-600",
-                            stat.color === "amber" && "text-amber-600",
-                            stat.color === "slate" && "text-slate-600",
-                          )}>{stat.value}</p>
-                          <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-slate-500 mt-1">{stat.label}</p>
+                        <div
+                          key={stat.label}
+                          className="p-3 sm:p-4 rounded-[14px] sm:rounded-[16px] border text-center"
+                          style={{ background: stat.bg, borderColor: "transparent" }}
+                        >
+                          <div className="text-xl sm:text-2xl font-bold" style={{ color: stat.color }}>
+                            {stat.value}
+                          </div>
+                          <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-[var(--ink-faint,#9BA3AF)] mt-1">
+                            {stat.label}
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Daily Attendance Section */}
-        <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Daily Attendance Record</h3>
-                <p className="text-xs sm:text-sm font-semibold text-slate-500">Subject-wise presence tracking</p>
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <MiniCalendar
-                  value={attendanceDateBS}
-                  onChange={setAttendanceDate}
-                  className="flex-1 sm:w-[200px]"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setAttendanceDate(getTodayADString())}
-                  className="shrink-0 gap-1.5 rounded-xl text-xs h-9"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Today
-                </Button>
-              </div>
             </div>
-          </div>
-          <div className="p-4 sm:p-6">
-            {isClassAssignmentsError ? (
-              <div className="text-center py-8 sm:py-10 rounded-xl sm:rounded-2xl bg-red-50 border-2 border-dashed border-red-200">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 text-red-400" />
-                </div>
-                <p className="text-red-600 font-bold text-sm sm:text-base tracking-tight">Unable to load class teachers</p>
-                <p className="text-red-400 text-xs sm:text-sm font-semibold mt-1">Please try again later</p>
-              </div>
-            ) : classAssignments.length === 0 ? (
-              <div className="text-center py-8 sm:py-10 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <Users className="h-6 w-6 sm:h-7 sm:w-7 text-slate-300" />
-                </div>
-                <p className="text-slate-500 font-bold text-sm sm:text-base tracking-tight">No class teachers assigned yet</p>
-                <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-1">Teachers will appear once assigned</p>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2 sm:gap-3 justify-center">
-                {classAssignments.map((assignment) => {
-                  const attendance = dailyAttendance.find(a => a.subjectId === assignment.subjectId);
-                  return (
-                    <div
-                      key={assignment.classAssignmentId}
-                      className="w-[calc(50%-0.5rem)] sm:w-[150px] p-3 sm:p-4 rounded-xl sm:rounded-2xl bg-slate-50 border border-slate-100 flex flex-col items-center text-center group hover:bg-white hover:border-violet-200 hover:shadow-xl hover:shadow-violet-500/[0.03] transition-all duration-300"
-                    >
-                      <BookOpen className="h-4 w-4 sm:h-5 sm:w-5 text-violet-500 mb-1.5 sm:mb-2" />
-                      <h4 className="text-[10px] sm:text-xs font-bold text-slate-800 truncate w-full tracking-tight">
-                        {assignment.subjectName}
-                      </h4>
-                      <p className="text-[9px] text-slate-400 font-bold mb-2 sm:mb-3 truncate w-full uppercase tracking-wider">
-                        {assignment.teacherName}
-                      </p>
-                      <AttendanceStatusBadge status={attendance?.attendanceStatus} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+          )}
 
-        {/* Diary / Assignments Section */}
-        <div className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
-          <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-              <div>
-                <h3 className="text-base sm:text-lg font-bold tracking-tight text-slate-900">Diary & Assignments</h3>
-                <p className="text-xs sm:text-sm font-semibold text-slate-500">Track classwork and homework</p>
+          {/* ════════ CLASSWORK ════════ */}
+          {activeTab === "classwork" && (
+            <div className="p-4 sm:p-5 md:p-6 animate-[fade_.35s_ease]">
+              <div className="mb-5 sm:mb-6">
+                <h3 className="font-display font-semibold text-[19px] sm:text-[21px] text-[var(--ink,#23303D)] mb-1">
+                  Classwork &amp; diary
+                </h3>
+                <p className="text-[13px] sm:text-[13.5px] text-[var(--ink-soft,#667081)]">
+                  What Aarohi&apos;s teachers noted down, day by day.
+                </p>
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <MiniCalendar
-                  value={diaryDateBS}
-                  onChange={setDiaryDate}
-                  className="flex-1 sm:w-[200px]"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDiaryDate(getTodayADString())}
-                  className="shrink-0 gap-1.5 rounded-xl text-xs h-9"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  Today
-                </Button>
-              </div>
-            </div>
-          </div>
-          <div className="p-4 sm:p-6">
-            {diaryEntries.length === 0 ? (
-              <div className="text-center py-12 sm:py-16 rounded-xl sm:rounded-2xl bg-slate-50 border-2 border-dashed border-slate-200">
-                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <BookMarked className="h-6 w-6 sm:h-8 sm:w-8 text-slate-300" />
-                </div>
-                <p className="text-slate-500 font-bold text-base sm:text-lg tracking-tight">No diary entries found</p>
-                <p className="text-slate-400 text-xs sm:text-sm font-semibold mt-1">Diary entries will appear here once created</p>
-              </div>
-            ) : (
-              <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
-                {diaryEntries.map((entry) => (
-                  <div
-                    key={entry.diaryId}
-                    className="rounded-xl border border-slate-200 bg-white hover:border-violet-200 hover:shadow-md transition-all group flex flex-col h-full"
+
+              {/* Date strip */}
+              <div
+                className="flex items-center justify-between rounded-[14px] sm:rounded-[16px] p-2.5 sm:p-3 mb-4 sm:mb-5 border"
+                style={{
+                  background: "var(--paper-deep,#F1E7D4)",
+                  borderColor: "var(--line-soft,#EFE6D2)",
+                }}
+              >
+                <div className="flex items-center gap-2 sm:gap-2.5">
+                  <button
+                    onClick={() => setDayOffset((d) => d - 1)}
+                    className="w-[30px] h-[30px] rounded-full border flex items-center justify-center cursor-pointer transition-all duration-150 flex-shrink-0"
+                    style={{
+                      background: "var(--paper-card,#FFFDF8)",
+                      borderColor: "var(--line-soft,#EFE6D2)",
+                      color: "var(--ink-soft,#667081)",
+                    }}
+                    aria-label="Previous day"
                   >
-                    <div className="p-4 sm:p-5 flex flex-col flex-1">
-                      <div className="flex items-start gap-3 sm:gap-4 mb-3">
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                          <BookMarked className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-sm sm:text-base font-bold text-slate-800 leading-tight mb-1.5">
+                    <ChevronLeft className="w-[15px] h-[15px]" />
+                  </button>
+                  <div className="flex flex-col">
+                    <span className="font-mono-custom text-[10.5px] sm:text-[11px] text-[var(--ink-faint,#9BA3AF)]">
+                      Poush {5 + dayOffset}, 2082
+                    </span>
+                    <span className="font-bold text-[13.5px] sm:text-[14.5px] text-[var(--ink,#23303D)]">
+                      {formatDateAD(diaryDate)}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setDayOffset((d) => d + 1)}
+                    className="w-[30px] h-[30px] rounded-full border flex items-center justify-center cursor-pointer transition-all duration-150 flex-shrink-0"
+                    style={{
+                      background: "var(--paper-card,#FFFDF8)",
+                      borderColor: "var(--line-soft,#EFE6D2)",
+                      color: "var(--ink-soft,#667081)",
+                    }}
+                    aria-label="Next day"
+                  >
+                    <ChevronLeft className="w-[15px] h-[15px] rotate-180" />
+                  </button>
+                </div>
+                <button
+                  onClick={() => setDayOffset(0)}
+                  className="border font-semibold text-[11.5px] sm:text-[12px] px-3 sm:px-3.5 py-1.5 rounded-full cursor-pointer transition-all duration-150 flex-shrink-0"
+                  style={{
+                    background: "var(--paper-card,#FFFDF8)",
+                    borderColor: "var(--line-soft,#EFE6D2)",
+                    color: "var(--ink-soft,#667081)",
+                  }}
+                >
+                  Today
+                </button>
+              </div>
+
+              {/* Diary content */}
+              {diaryEntries.length === 0 ? (
+                <div
+                  className="text-center py-10 sm:py-12 rounded-[16px] sm:rounded-[18px] border-2 border-dashed"
+                  style={{ background: "var(--paper-deep,#F1E7D4)", borderColor: "var(--line,#E6D9BE)" }}
+                >
+                  <div
+                    className="w-[52px] h-[52px] rounded-full flex items-center justify-center mx-auto mb-3.5 border"
+                    style={{
+                      background: "var(--paper-card,#FFFDF8)",
+                      borderColor: "var(--line-soft,#EFE6D2)",
+                      color: "var(--ink-faint,#9BA3AF)",
+                    }}
+                  >
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div className="font-bold text-[14px] sm:text-[14.5px] text-[var(--ink,#23303D)] mb-1">
+                    No classwork noted for this day
+                  </div>
+                  <div className="text-[12px] sm:text-[12.5px] text-[var(--ink-faint,#9BA3AF)]">
+                    Try another date, or check back once teachers add notes.
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
+                  {diaryEntries.map((entry) => {
+                    const subjectInfo = MOCK_SUBJECTS.find((s) => s.subjectName === entry.subject);
+                    const color = entry.color || subjectInfo?.color || "var(--sky,#4E6E8E)";
+                    return (
+                      <div
+                        key={entry.diaryId}
+                        className="relative overflow-hidden rounded-[14px] sm:rounded-[18px] border p-4 sm:p-4 group hover:shadow-md transition-all duration-200"
+                        style={{
+                          background: `repeating-linear-gradient(var(--paper-card,#FFFDF8) 0 30px, var(--line-soft,#EFE6D2) 30px 31px)`,
+                          borderColor: "var(--line,#E6D9BE)",
+                        }}
+                      >
+                        {/* Red margin line */}
+                        <div
+                          className="absolute left-[22px] top-0 bottom-0 w-[1px]"
+                          style={{ background: "rgba(177,74,63,0.18)" }}
+                        />
+                        <div className="relative pl-1.5 sm:pl-1.5">
+                          <span
+                            className="inline-flex items-center gap-1 text-[10.5px] sm:text-[11px] font-bold px-2.5 sm:px-3 py-[3px] rounded-full mb-2.5 sm:mb-3"
+                            style={{ background: hexToSoft(color), color }}
+                          >
+                            {entry.subject}
+                          </span>
+                          <h4 className="font-display italic font-medium text-[15.5px] sm:text-[17px] text-[var(--ink,#23303D)] mb-2 leading-tight">
                             {entry.title}
                           </h4>
-                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                            <Badge className="text-[10px] sm:text-xs bg-violet-50 text-violet-700 border-violet-200 font-semibold px-2 py-0.5">
-                              {entry.subjectName}
-                            </Badge>
-                            <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1">
-                              <Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-                              {entry.diaryDate}
-                            </span>
+                          <p className="text-[12.5px] sm:text-[13px] text-[var(--ink-soft,#667081)] leading-[1.6] mb-3.5">
+                            {entry.content}
+                          </p>
+                          <div className="flex items-center gap-2 pt-2.5 border-t border-dashed" style={{ borderColor: "var(--line,#E6D9BE)" }}>
+                            <div
+                              className="w-[26px] h-[26px] rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
+                              style={{ background: "var(--sky-soft,#E5ECF2)", color: "var(--sky,#4E6E8E)" }}
+                            >
+                              {getInitials(entry.teacher)}
+                            </div>
+                            <div>
+                              <div className="text-[12px] sm:text-[12.5px] font-semibold text-[var(--ink,#23303D)]">{entry.teacher}</div>
+                              <div className="font-mono-custom text-[10px] sm:text-[10.5px] text-[var(--ink-faint,#9BA3AF)]">Teacher</div>
+                            </div>
                           </div>
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                      <div className="flex-1 mt-1">
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-wrap break-words">
-                          {entry.content}
-                        </p>
-                      </div>
+              {/* Daily Attendance Record */}
+              <div className="mt-6 sm:mt-8">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <h4 className="font-display text-[15px] sm:text-[16px] font-semibold text-[var(--ink,#23303D)]">
+                    Daily attendance record
+                  </h4>
+                  <span className="font-mono-custom text-[10.5px] sm:text-[11px] text-[var(--ink-faint,#9BA3AF)]">
+                    {formatDateAD(diaryDate)}
+                  </span>
+                </div>
 
-                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
-                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                            <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-600" />
+                {filteredDailyAttendance.length === 0 ? (
+                  <div
+                    className="text-center py-8 sm:py-10 rounded-[14px] sm:rounded-[16px] border-2 border-dashed"
+                    style={{ background: "var(--paper-deep,#F1E7D4)", borderColor: "var(--line,#E6D9BE)" }}
+                  >
+                    <div className="font-bold text-[13.5px] sm:text-[14px] text-[var(--ink,#23303D)]">No records for this filter</div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 sm:gap-3 justify-center sm:justify-start">
+                    {filteredDailyAttendance.map((record) => {
+                      const subjectInfo = MOCK_SUBJECTS.find((s) => s.subjectId === record.subjectId);
+                      return (
+                        <div
+                          key={record.subjectId}
+                          className="w-[calc(50%-0.375rem)] sm:w-[155px] p-3 sm:p-4 rounded-[14px] sm:rounded-[16px] border flex flex-col items-center text-center transition-all duration-300 group hover:shadow-lg"
+                          style={{
+                            background: "var(--paper-deep,#F1E7D4)",
+                            borderColor: "var(--line-soft,#EFE6D2)",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--marigold,#E39A2D)";
+                            (e.currentTarget as HTMLElement).style.background = "var(--paper-card,#FFFDF8)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--line-soft,#EFE6D2)";
+                            (e.currentTarget as HTMLElement).style.background = "var(--paper-deep,#F1E7D4)";
+                          }}
+                        >
+                          <div
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-[10px] sm:rounded-[11px] flex items-center justify-center mb-1.5 sm:mb-2 transition-transform duration-200 group-hover:scale-110"
+                            style={{ background: hexToSoft(subjectInfo?.color || "#667081"), color: subjectInfo?.color || "#667081" }}
+                          >
+                            <SubjectIcon type={subjectInfo?.icon || "book"} className="w-[18px] h-[18px]" />
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-[10px] sm:text-xs text-slate-400 font-medium">Teacher</p>
-                            <p className="text-xs sm:text-sm text-slate-700 font-semibold truncate">
-                              {entry.teacherName}
-                            </p>
-                          </div>
+                          <h4 className="text-[10px] sm:text-[11px] font-bold text-[var(--ink,#23303D)] truncate w-full leading-tight">
+                            {record.subjectName}
+                          </h4>
+                          <p className="text-[9px] font-bold text-[var(--ink-faint,#9BA3AF)] mb-2 sm:mb-2.5 truncate w-full uppercase tracking-wider mt-0.5">
+                            {record.teacherName}
+                          </p>
+                          <AttendanceStatusPill status={record.status} />
                         </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ════════ SUBJECTS ════════ */}
+          {activeTab === "subjects" && (
+            <div className="p-4 sm:p-5 md:p-6 animate-[fade_.35s_ease]">
+              <div className="mb-5 sm:mb-6">
+                <h3 className="font-display font-semibold text-[19px] sm:text-[21px] text-[var(--ink,#23303D)] mb-1">
+                  Subjects &amp; teachers
+                </h3>
+                <p className="text-[13px] sm:text-[13.5px] text-[var(--ink-soft,#667081)]">
+                  Everyone teaching Aarohi this term.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                {MOCK_SUBJECTS.map((subject) => (
+                  <div
+                    key={subject.subjectId}
+                    className="flex gap-3 sm:gap-3.5 items-start rounded-[14px] sm:rounded-[18px] p-3.5 sm:p-4 border transition-all duration-150 cursor-default group"
+                    style={{
+                      background: "var(--paper-deep,#F1E7D4)",
+                      borderColor: "var(--line-soft,#EFE6D2)",
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--marigold,#E39A2D)";
+                      (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.borderColor = "var(--line-soft,#EFE6D2)";
+                      (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+                    }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-[12px] flex-shrink-0 flex items-center justify-center text-white transition-transform duration-200 group-hover:scale-110"
+                      style={{ background: subject.color }}
+                    >
+                      <SubjectIcon type={subject.icon} className="w-[19px] h-[19px]" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-[13.5px] sm:text-[14.5px] text-[var(--ink,#23303D)] mb-0.5 leading-tight">
+                        {subject.subjectName}
+                      </div>
+                      <div className="text-[12px] sm:text-[12.5px] text-[var(--ink-soft,#667081)]">
+                        {subject.teacherName}
+                      </div>
+                      <div className="font-mono-custom text-[10px] sm:text-[10.5px] text-[var(--ink-faint,#9BA3AF)] mt-1 uppercase tracking-wider">
+                        {subject.role}
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

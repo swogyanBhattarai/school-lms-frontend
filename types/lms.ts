@@ -28,6 +28,7 @@ export interface ClassAssignmentAttendanceResponse {
   classAssignmentId: number;
   sectionId: number;
   subjectId: number;
+  teacherId: number;
   teacherName: string;
   teacherRole: TeacherRoles;
   subjectName: string;
@@ -521,6 +522,7 @@ export interface UserCreateDTO {
 export interface UserLoginDTO {
   username: string;
   password: string;
+  schoolSlug?: string;
 }
 
 export interface UserResponseDTO {

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GraduationCap, BookOpen, Users, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/auth";
@@ -11,42 +11,74 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [schoolSlug, setSchoolSlug] = useState<string | null>(null);
+  const [slugError, setSlugError] = useState(false);
+
+  useEffect(() => {
+    const match = document.cookie.match(/(?:^|;\s*)schoolSlug=([^;]*)/);
+    if (match) {
+      setSchoolSlug(match[1]);
+    } else {
+      setSlugError(true);
+    }
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!schoolSlug) return;
+    setError("");
+    setLoading(true);
+    try {
+      await login({ username, password, schoolSlug });
+      router.replace("/");
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, "Login failed"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (slugError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50">
+        <div className="text-center px-6">
+          <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">!</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Invalid Access</h1>
+          <p className="text-muted-foreground mt-2 max-w-sm">
+            This URL is not associated with any school. Please check the address or contact your administrator.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* Left Side - Branding/Info (2/3) */}
       <div className="hidden lg:flex lg:w-2/3 relative overflow-hidden bg-gradient-to-br from-primary via-primary/90 to-blue-800">
-        {/* Background Pattern */}
         <div className="absolute inset-0 bg-grid-white/[0.05] bg-[length:20px_20px]" />
-        
-        {/* Decorative Circles */}
         <div className="absolute top-0 left-0 w-96 h-96 bg-blue-400 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse" />
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse delay-1000" />
-        
-        {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-12 lg:px-20 text-white">
           <div className="space-y-8">
-            {/* Logo/Brand */}
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
                 <GraduationCap className="w-7 h-7" />
               </div>
               <h1 className="text-3xl font-bold tracking-tight">EduManage</h1>
             </div>
-            
-            {/* Tagline */}
             <div className="space-y-4">
               <h2 className="text-4xl lg:text-5xl font-bold leading-tight">
                 Streamline Your
                 <span className="block text-blue-200">School Management</span>
               </h2>
               <p className="text-lg text-blue-100/90 leading-relaxed max-w-md">
-                A comprehensive platform for managing students, courses, grades, and more. 
+                A comprehensive platform for managing students, courses, grades, and more.
                 Everything you need in one place.
               </p>
             </div>
-
-            {/* Features */}
             <div className="grid gap-4 pt-8">
               <div className="flex items-center gap-3 text-blue-100">
                 <div className="w-10 h-10 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
@@ -68,7 +100,6 @@ export default function LoginPage() {
       {/* Right Side - Login Form (1/3) */}
       <div className="w-full lg:w-1/3 flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-md">
-          {/* Mobile Logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
               <GraduationCap className="w-6 h-6 text-white" />
@@ -77,29 +108,20 @@ export default function LoginPage() {
           </div>
 
           <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-            <div className="text-center mb-8">
+            <div className="text-center mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
               <p className="text-sm text-muted-foreground mt-2">
                 Please sign in to your account
               </p>
             </div>
 
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setError("");
-                setLoading(true);
-                try {
-                  await login({ username, password });
-                  router.replace("/");
-                } catch (err: any) {
-                  setError(getApiErrorMessage(err, "Login failed"));
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              className="space-y-5"
-            >
+            {schoolSlug && (
+              <div className="text-center text-sm text-muted-foreground mb-4 px-3 py-2 rounded-lg bg-blue-50 border border-blue-100">
+                Signing in to <span className="font-semibold text-blue-700">{schoolSlug}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Username
@@ -157,10 +179,6 @@ export default function LoginPage() {
                 )}
               </button>
             </form>
-
-            <div className="mt-6 text-center text-sm text-muted-foreground">
-              <p>Demo credentials: admin / admin123</p>
-            </div>
           </div>
         </div>
       </div>

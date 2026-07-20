@@ -731,6 +731,78 @@ export default function TeacherStudentPageClient() {
 
       {!studentsError && students.length > 0 && (
         <>
+        {/* Top Pagination Bar — integrated into the page */}
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:block text-xs sm:text-sm text-muted-foreground shrink-0">
+            {(currentPage - 1) * pageSize + 1}–
+            {Math.min(currentPage * pageSize, totalStudents)} of {totalStudents}
+          </div>
+          <div className="flex grow justify-center sm:justify-start">
+            <div className="flex items-center gap-0.5">
+              <button
+                className="h-8 sm:h-8 w-8 sm:w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                disabled={pageNum <= 1}
+                onClick={() => setPageNum((p) => p - 1)}
+              >
+                <ChevronLeft className="h-4 sm:h-4 w-4 sm:w-4" />
+              </button>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let pageNumber;
+                if (totalPages <= 5) {
+                  pageNumber = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNumber = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNumber = totalPages - 4 + i;
+                } else {
+                  pageNumber = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNumber}
+                    className={cn(
+                      "h-8 sm:h-8 min-w-8 sm:min-w-8 px-1 flex items-center justify-center rounded-md text-sm sm:text-sm font-medium transition-colors",
+                      pageNumber === currentPage
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60",
+                    )}
+                    onClick={() => setPageNum(pageNumber)}
+                  >
+                    {pageNumber}
+                  </button>
+                );
+              })}
+              <button
+                className="h-8 sm:h-8 w-8 sm:w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+                disabled={pageNum >= totalPages}
+                onClick={() => setPageNum((p) => p + 1)}
+              >
+                <ChevronRight className="h-4 sm:h-4 w-4 sm:w-4" />
+              </button>
+            </div>
+          </div>
+          <div className="shrink-0">
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => {
+                setPageSize(Number(v));
+                setPageNum(1);
+              }}
+            >
+              <SelectTrigger className="h-8 sm:h-8 w-[64px] sm:w-[70px] text-xs sm:text-xs border-0 bg-muted/40 hover:bg-muted/80 rounded-md shadow-none">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZE_OPTIONS.map((size) => (
+                  <SelectItem key={size} value={String(size)}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {viewMode === "grid" ? (
         <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {students.map((student, index) => {
@@ -967,80 +1039,7 @@ export default function TeacherStudentPageClient() {
         </>
       )}
 
-      {/* Pagination */}
-      {students.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 py-3 border rounded-xl bg-card shadow-sm">
-          <div className="text-xs text-muted-foreground order-2 sm:order-1">
-            {(currentPage - 1) * pageSize + 1}–
-            {Math.min(currentPage * pageSize, totalStudents)} of {totalStudents}
-          </div>
-          <div className="flex items-center gap-1 order-1 sm:order-2 flex-wrap justify-center">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 text-xs"
-              disabled={pageNum <= 1}
-              onClick={() => setPageNum((p) => p - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-              let pageNumber;
-              if (totalPages <= 5) {
-                pageNumber = i + 1;
-              } else if (currentPage <= 3) {
-                pageNumber = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNumber = totalPages - 4 + i;
-              } else {
-                pageNumber = currentPage - 2 + i;
-              }
-              return (
-                <Button
-                  key={pageNumber}
-                  variant={pageNumber === currentPage ? "default" : "outline"}
-                  size="sm"
-                  className={`h-8 w-8 p-0 text-xs ${
-                    pageNumber === currentPage
-                      ? "bg-[#185FA5] hover:bg-[#0C447C]"
-                      : ""
-                  }`}
-                  onClick={() => setPageNum(pageNumber)}
-                >
-                  {pageNumber}
-                </Button>
-              );
-            })}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-2 text-xs"
-              disabled={pageNum >= totalPages}
-              onClick={() => setPageNum((p) => p + 1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => {
-                setPageSize(Number(v));
-                setPageNum(1);
-              }}
-            >
-              <SelectTrigger className="h-8 w-[60px] sm:w-[65px] text-xs ml-1 sm:ml-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <SelectItem key={size} value={String(size)}>
-                    {size}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-      )}
+      {/* Pagination removed — now at top */}
     </div>
   );
 }

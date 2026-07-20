@@ -12,9 +12,7 @@ type JwtPayload = {
 
 const decodeJwtPayload = (token: string) => {
   const parts = token.split(".");
-  if (parts.length !== 3) {
-    return null;
-  }
+  if (parts.length !== 3) return null;
   const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
   const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
   try {
@@ -27,81 +25,121 @@ const decodeJwtPayload = (token: string) => {
 
 const isTokenExpired = (token: string) => {
   const payload = decodeJwtPayload(token);
-  if (!payload?.exp) {
-    return false;
-  }
+  if (!payload?.exp) return false;
   return Date.now() >= payload.exp * 1000;
 };
 
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+// ── Slug cache (module-level, survives warm middleware invocations) ──
+let slugCache: { slugs: string[]; timestamp: number } | null = null;
+const CACHE_TTL = 5 * 60 * 1000;
 
-  console.log("PATH:", request.nextUrl.pathname);
+async function getValidSlugs(): Promise<string[]> {
+  if (slugCache && Date.now() - slugCache.timestamp < CACHE_TTL) {
+    return slugCache.slugs;
+  }
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"}/api/school/slugs`,
+    );
+    const slugs: string[] = await res.json();
+    slugCache = { slugs, timestamp: Date.now() };
+    return slugs;
+  } catch {
+    return slugCache?.slugs ?? [];
+  }
+}
 
-  const publicPaths = ["/login", "/login/", "/not-found", "/not-found/"];
+// ── Subdomain extraction ──
+// "slug.localhost"         → "slug"
+// "slug.domain.com"        → "slug"
+// "slug.domain.com.np"     → "slug"
+// "localhost"              → null
+// "www.domain.com"         → null (www is ignored)
+function extractSubdomain(hostname: string): string | null {
+  const parts = hostname.split(".");
+  if (parts.length === 1) return null;
+  if (parts.length === 2) {
+    return parts[0] === "localhost" ? null : parts[0];
+  }
+  const candidate = parts[0];
+  return candidate === "www" ? null : candidate;
+}
 
-  // Next.js internals — always skip
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/api") ||
-    pathname === "/favicon.ico"
-  ) {
+// ── Exact public path match (NOT startsWith) ──
+function isPublicPath(pathname: string): boolean {
+  const normalized = pathname.replace(/\/+$/, "") || "/";
+  return normalized === "/login" || normalized === "/not-found";
+}
+
+// ── Middleware ──
+export async function middleware(request: NextRequest) {
+  const { pathname, hostname } = request.nextUrl;
+
+  // Skip Next.js internals
+  if (pathname.startsWith("/_next") || pathname === "/favicon.ico") {
     return NextResponse.next();
   }
 
-  // Public pages — always allow
-  if (publicPaths.some((p) => pathname.startsWith(p))) {
+  // Allow API calls through (login, slug fetch, etc.)
+  if (pathname.startsWith("/api")) {
     return NextResponse.next();
   }
 
+  // ── Subdomain validation (runs for ALL hosts) ──
+  const schoolSlug = extractSubdomain(hostname);
+  if (!schoolSlug || schoolSlug === "www") {
+    return NextResponse.redirect(new URL("/not-found", request.url));
+  }
+
+  const validSlugs = await getValidSlugs();
+  if (!validSlugs.includes(schoolSlug)) {
+    return NextResponse.redirect(new URL("/not-found", request.url));
+  }
+
+  // ── Public paths (login, not-found) ──
+  if (isPublicPath(pathname)) {
+    const res = NextResponse.next();
+    res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
+    return res;
+  }
+
+  // ── Auth check ──
   const token = request.cookies.get(ACCESS_COOKIE)?.value;
-
-  console.log("TOKEN EXISTS", !!token);
-
   if (!token || isTokenExpired(token)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  const payload = token ? decodeJwtPayload(token) : null;
-
-  console.log("PAYLOAD", payload);
-
+  // ── Role routing ──
+  const payload = decodeJwtPayload(token);
   const roles = payload?.roles ?? [];
 
   const isAdmin = roles.includes("ROLE_ADMIN") || roles.includes("ADMIN");
   const isTeacher = roles.includes("ROLE_TEACHER") || roles.includes("TEACHER");
-  const isStudent = roles.includes("ROLE_STUDENT") || roles.includes("STUDENT");
 
-  // ── Root redirect → role home ──
   if (pathname === "/") {
     const url = request.nextUrl.clone();
     if (isAdmin) {
       url.pathname = "/admin";
-    } else if (isTeacher || isAdmin) {
+    } else if (isTeacher) {
       url.pathname = "/teacher";
-    } else if (isStudent || isAdmin) {
+    } else {
       url.pathname = "/student";
     }
     return NextResponse.redirect(url);
   }
 
-  // ── Admin route guard ──
-  // All /admin/* routes require ROLE_ADMIN
   if (pathname.startsWith("/admin") && !isAdmin) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // All /teacher/* routes require ROLE_TEACHER or ROLE_ADMIN
   if (pathname.startsWith("/teacher") && !isTeacher && !isAdmin) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
-  return NextResponse.next();
+  // ── Final response with cookie ──
+  const res = NextResponse.next();
+  res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
+  return res;
 }
-

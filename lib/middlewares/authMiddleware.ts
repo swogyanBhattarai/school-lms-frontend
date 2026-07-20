@@ -25,7 +25,10 @@ const decodeJwtPayload = (token: string) => {
 
 const isTokenExpired = (token: string) => {
   const payload = decodeJwtPayload(token);
-  if (!payload?.exp) return false;
+  // If the JWT can't be decoded at all, treat it as expired/invalid
+  if (!payload) return true;
+  // If there's no expiry claim, treat it as expired (defensive)
+  if (!payload.exp) return true;
   return Date.now() >= payload.exp * 1000;
 };
 

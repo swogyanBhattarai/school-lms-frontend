@@ -62,6 +62,8 @@ async function getValidSlugs(): Promise<string[]> {
 // If not set, the middleware will reject all non-localhost requests.
 const KNOWN_DOMAIN = process.env.KNOWN_DOMAIN;
 
+console.log(`authMiddleware loaded with KNOWN_DOMAIN=${KNOWN_DOMAIN}`);
+
 // ── Subdomain extraction ──
 // Matches hostname against the known root domain or localhost.
 // Returns the tenant slug, or null if no valid subdomain is found.

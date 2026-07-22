@@ -12,7 +12,6 @@ import {
   ArrowDown,
   ArrowUpDown,
   Trash2,
-  Search,
   Download,
   Eye,
   ChevronLeft,
@@ -22,8 +21,8 @@ import {
   MoreHorizontal,
   UserX,
   UserCheck,
-  Filter,
-  X,
+  GraduationCap,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Input } from "@/app/_components/ui/input";
@@ -34,6 +33,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/_components/ui/select";
+import DebouncedSearchInput from "@/app/_components/ui/DebouncedSearchInput";
+import FilterDropdown from "@/app/_components/ui/FilterDropdown";
+import ClearFiltersButton from "@/app/_components/ui/ClearFiltersButton";
+import MobileFilterBar from "@/app/_components/ui/MobileFilterBar";
 import {
   Dialog,
   DialogContent,
@@ -59,14 +62,6 @@ import {
   DropdownMenuTrigger,
 } from "@/app/_components/ui/dropdown-menu";
 import { Badge } from "@/app/_components/ui/badge";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetTrigger,
-} from "@/app/_components/ui/sheet";
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (isAxiosError(error)) {
@@ -122,12 +117,14 @@ export default function StudentsPageClient() {
   const { toast } = useToast();
 
   // URL params initialization
-  const [search, setSearch] = useState(searchParams?.get("studentName") || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    searchParams?.get("studentName") || "",
+  );
   const [selectedClassId, setSelectedClassId] = useState<string>(
-    searchParams?.get("classId") || "",
+    searchParams?.get("classId") || "all",
   );
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
-    searchParams?.get("sectionId") || "",
+    searchParams?.get("sectionId") || "all",
   );
   const [sortBy, setSortBy] = useState(
     searchParams?.get("sortBy") || "studentId",
@@ -143,23 +140,6 @@ export default function StudentsPageClient() {
     searchParams?.get("hasSectionAssignment") || "all",
   );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
-
-  const normalizeFilterValue = useCallback((value: string) => {
-    return value === "all" ? "" : value;
-  }, []);
-
-  // Debounced search
-  const [debouncedSearch, setDebouncedSearch] = useState(search);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPageNum(1); // Reset to first page on search
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Fetch students
   const studentsQueryParams = useMemo(
@@ -170,11 +150,11 @@ export default function StudentsPageClient() {
       pageNum,
       studentName: debouncedSearch.trim() || undefined,
       classId:
-        selectedClassId && selectedClassId !== "all"
+        selectedClassId !== "all"
           ? Number(selectedClassId)
           : undefined,
       sectionId:
-        selectedSectionId && selectedSectionId !== "all"
+        selectedSectionId !== "all"
           ? Number(selectedSectionId)
           : undefined,
       hasSectionAssignment:
@@ -241,7 +221,7 @@ export default function StudentsPageClient() {
   const { data: sections = [] } = useQuery<SectionResponse[]>({
     queryKey: ["class-sections", selectedClassId],
     queryFn: () => getSectionsBySchoolClassId(Number(selectedClassId)),
-    enabled: Boolean(selectedClassId),
+    enabled: selectedClassId !== "all",
   });
 
   const selectedSectionName = useMemo(() => {
@@ -252,16 +232,16 @@ export default function StudentsPageClient() {
 
   // Reset section when class changes
   useEffect(() => {
-    if (selectedClassId) {
+    if (selectedClassId !== "all") {
       // Check if current section belongs to selected class
       const sectionExists = sections.some(
         (s) => String(s.sectionId) === selectedSectionId,
       );
       if (!sectionExists) {
-        setSelectedSectionId("");
+        setSelectedSectionId("all");
       }
     } else {
-      setSelectedSectionId("");
+      setSelectedSectionId("all");
     }
   }, [selectedClassId, sections, selectedSectionId]);
 
@@ -282,11 +262,14 @@ export default function StudentsPageClient() {
 
   const hasContent = students.length > 0;
 
-  // Active filters count
+  // Active filters count — includes search, class, section, status, sort
   const activeFiltersCount = [
-    selectedClassId,
-    selectedSectionId,
+    debouncedSearch.trim(),
+    selectedClassId !== "all" ? selectedClassId : "",
+    selectedSectionId !== "all" ? selectedSectionId : "",
     hasSectionAssignment !== "all" ? hasSectionAssignment : "",
+    sortBy !== "studentId" ? sortBy : "",
+    sortDir !== "ASC" ? sortDir : "",
   ].filter(Boolean).length;
 
   // Update URL params
@@ -294,10 +277,10 @@ export default function StudentsPageClient() {
     const params = new URLSearchParams();
     if (debouncedSearch.trim())
       params.set("studentName", debouncedSearch.trim());
-    if (selectedClassId && selectedClassId !== "all") {
+    if (selectedClassId !== "all") {
       params.set("classId", selectedClassId);
     }
-    if (selectedSectionId && selectedSectionId !== "all") {
+    if (selectedSectionId !== "all") {
       params.set("sectionId", selectedSectionId);
     }
     if (hasSectionAssignment && hasSectionAssignment !== "all") {
@@ -336,11 +319,12 @@ export default function StudentsPageClient() {
   };
 
   const handleClearFilters = () => {
-    setSearch("");
     setDebouncedSearch("");
-    setSelectedClassId("");
-    setSelectedSectionId("");
+    setSelectedClassId("all");
+    setSelectedSectionId("all");
     setHasSectionAssignment("all");
+    setSortBy("studentId");
+    setSortDir("ASC");
     setPageNum(1);
   };
 
@@ -372,128 +356,6 @@ export default function StudentsPageClient() {
     }
     return `${Math.round(average)}%`;
   };
-
-  // Mobile filter content
-  const FilterContent = () => (
-    <div className="space-y-4">
-      <div>
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-          Class
-        </label>
-        <Select
-          value={selectedClassId || "all"}
-          onValueChange={(value) =>
-            setSelectedClassId(normalizeFilterValue(value))
-          }
-        >
-          <SelectTrigger className="h-10 text-sm w-full">
-            <SelectValue placeholder="All classes" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All classes</SelectItem>
-            {classes.map((cls) => (
-              <SelectItem
-                key={cls.schoolClassId}
-                value={String(cls.schoolClassId)}
-              >
-                Grade {cls.grade}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-          Section
-        </label>
-        <Select
-          value={selectedSectionId || "all"}
-          onValueChange={(value) =>
-            setSelectedSectionId(normalizeFilterValue(value))
-          }
-          disabled={!selectedClassId}
-        >
-          <SelectTrigger className="h-10 text-sm w-full">
-            <SelectValue placeholder="All sections" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All sections</SelectItem>
-            {sections.map((section) => (
-              <SelectItem
-                key={section.sectionId}
-                value={String(section.sectionId)}
-              >
-                {section.sectionName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-          Status
-        </label>
-        <Select
-          value={hasSectionAssignment}
-          onValueChange={(value) => {
-            setHasSectionAssignment(value);
-            setPageNum(1);
-          }}
-        >
-          <SelectTrigger className="h-10 text-sm w-full">
-            <SelectValue placeholder="Assignment" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-          Sort By
-        </label>
-        <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="h-10 text-sm w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 block">
-          Order
-        </label>
-        <Select value={sortDir} onValueChange={setSortDir}>
-          <SelectTrigger className="h-10 text-sm w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ASC">Ascending</SelectItem>
-            <SelectItem value="DESC">Descending</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {activeFiltersCount > 0 && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full"
-          onClick={handleClearFilters}
-        >
-          <X className="h-4 w-4 mr-2" />
-          Clear All Filters
-        </Button>
-      )}
-    </div>
-  );
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -532,298 +394,110 @@ export default function StudentsPageClient() {
           </h2>
         </div>
 
-        {/* Mobile Search + Filter Bar */}
-        <div className="flex items-center gap-2 w-full sm:hidden">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search students..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-10 rounded-xl border-slate-200 bg-white text-sm focus-visible:ring-[#185FA5]/20"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-              </button>
-            )}
-          </div>
-
-          <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
-            <SheetTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "h-10 px-3 rounded-xl border-slate-200 gap-2 text-sm font-medium transition-all",
-                  activeFiltersCount > 0
-                    ? "border-[#185FA5]/30 bg-[#185FA5]/5 text-[#185FA5]"
-                    : "text-slate-600 hover:bg-slate-50",
-                )}
-              >
-                <Filter className="h-4 w-4" />
-                Filters
-                {activeFiltersCount > 0 && (
-                  <span className="min-w-[20px] h-5 rounded-full bg-[#185FA5] text-white text-[11px] font-bold flex items-center justify-center px-1.5">
-                    {activeFiltersCount}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="right" className="w-[320px] sm:w-[400px] p-0">
-              {/* Sheet Header */}
-              <div className="px-5 py-4 border-b border-slate-100">
-                <SheetHeader className="text-left space-y-0 p-0">
-                  <SheetTitle className="text-lg font-bold text-slate-900">
-                    Filters
-                  </SheetTitle>
-                </SheetHeader>
-                <div className="flex items-center justify-between mt-0.5">
-                  <SheetDescription className="text-xs text-slate-500 p-0">
-                    Refine your student list
-                  </SheetDescription>
-                  {activeFiltersCount > 0 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        handleClearFilters();
-                        setMobileFilterOpen(false);
-                      }}
-                      className="text-xs text-red-500 hover:text-red-600 hover:bg-red-50 h-7 px-2 -mr-2"
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" />
-                      Reset filters
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* Filter Content */}
-              <div className="p-5 space-y-5 overflow-y-auto max-h-[calc(100vh-180px)]">
-                {/* Quick Filters Row */}
-                <div className="flex gap-2">
-                  {[
-                    {
-                      label: "Active",
-                      value: "active",
-                      current: hasSectionAssignment,
-                    },
-                    {
-                      label: "Inactive",
-                      value: "inactive",
-                      current: hasSectionAssignment,
-                    },
-                  ].map((chip) => (
-                    <button
-                      key={chip.value}
-                      onClick={() => {
-                        setHasSectionAssignment(
-                          hasSectionAssignment === chip.value
-                            ? "all"
-                            : chip.value,
-                        );
-                        setPageNum(1);
-                      }}
-                      className={cn(
-                        "flex-1 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border",
-                        hasSectionAssignment === chip.value
-                          ? "bg-white text-slate-900 shadow-lg shadow-slate-200"
-                          : "border-slate-300 text-slate-500 hover:text-slate-700 hover:bg-slate-50",
-                      )}
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="border-t border-slate-100" />
-
-                {/* Class Filter */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Class
-                  </label>
-                  <Select
-                    value={selectedClassId || "all"}
-                    onValueChange={(value) =>
-                      setSelectedClassId(normalizeFilterValue(value))
-                    }
-                  >
-                    <SelectTrigger className="h-10 text-sm w-full rounded-xl">
-                      <SelectValue placeholder="All classes" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All classes</SelectItem>
-                      {classes.map((cls) => (
-                        <SelectItem
-                          key={cls.schoolClassId}
-                          value={String(cls.schoolClassId)}
-                        >
-                          Grade {cls.grade}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Section Filter */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Section
-                  </label>
-                  <Select
-                    value={selectedSectionId || "all"}
-                    onValueChange={(value) =>
-                      setSelectedSectionId(normalizeFilterValue(value))
-                    }
-                    disabled={!selectedClassId}
-                  >
-                    <SelectTrigger className="h-10 text-sm w-full rounded-xl">
-                      <SelectValue placeholder="All sections" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All sections</SelectItem>
-                      {sections.map((section) => (
-                        <SelectItem
-                          key={section.sectionId}
-                          value={String(section.sectionId)}
-                        >
-                          {section.sectionName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="border-t border-slate-100" />
-
-                {/* Sort Options */}
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
-                    Sort By
-                  </label>
-                  <div className="flex gap-2">
-                    <Select value={sortBy} onValueChange={setSortBy}>
-                      <SelectTrigger className="h-10 text-sm flex-1 rounded-xl">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SORT_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() =>
-                        setSortDir(sortDir === "ASC" ? "DESC" : "ASC")
-                      }
-                      className="h-10 w-10 rounded-xl border-slate-200 flex-shrink-0"
-                    >
-                      {sortDir === "ASC" ? (
-                        <ArrowUp className="h-4 w-4" />
-                      ) : (
-                        <ArrowDown className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Action Bar */}
-              <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-100 bg-white">
-                <Button
-                  className="w-full h-11 rounded-xl bg-[#185FA5] hover:bg-[#0C447C] text-sm font-semibold"
-                  onClick={() => setMobileFilterOpen(false)}
-                >
-                  Show Results
-                  {totalStudents > 0 && (
-                    <span className="ml-2 text-white/70">
-                      ({totalStudents})
-                    </span>
-                  )}
-                </Button>
-              </div>
-            </SheetContent>
-          </Sheet>
+        {/* Mobile filter bar */}
+        <div className="w-full sm:hidden">
+          <MobileFilterBar
+            searchValue={debouncedSearch}
+            onSearchChange={(val) => {
+              setDebouncedSearch(val);
+              setPageNum(1);
+            }}
+            searchPlaceholder="Search students..."
+            gradeValue={selectedClassId}
+            onGradeChange={setSelectedClassId}
+            gradeOptions={[
+              { value: "all", label: "All classes" },
+              ...classes.map((c) => ({
+                value: String(c.schoolClassId),
+                label: `Grade ${c.grade}`,
+              })),
+            ]}
+            sectionValue={selectedSectionId}
+            onSectionChange={setSelectedSectionId}
+            sectionOptions={[
+              { value: "all", label: "All sections" },
+              ...sections.map((s) => ({
+                value: String(s.sectionId),
+                label: s.sectionName,
+              })),
+            ]}
+            sectionDisabled={selectedClassId === "all"}
+            statusValue={hasSectionAssignment}
+            onStatusChange={(v) => {
+              setHasSectionAssignment(v);
+              setPageNum(1);
+            }}
+            statusOptions={[
+              { value: "all", label: "All" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            sortValue={sortBy}
+            onSortChange={setSortBy}
+            sortOptions={SORT_OPTIONS}
+            sortDirValue={sortDir}
+            onSortDirChange={setSortDir}
+            activeFiltersCount={activeFiltersCount}
+            onClearFilters={handleClearFilters}
+          />
         </div>
 
         {/* Desktop Filters */}
         <div className="hidden sm:flex items-center gap-2 sm:gap-3">
-          <div className="relative w-48 lg:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search students..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm"
-            />
-          </div>
-          <Select
-            value={selectedClassId || "all"}
-            onValueChange={(value) =>
-              setSelectedClassId(normalizeFilterValue(value))
-            }
-          >
-            <SelectTrigger className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm">
-              <SelectValue placeholder="All classes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All classes</SelectItem>
-              {classes.map((cls) => (
-                <SelectItem
-                  key={cls.schoolClassId}
-                  value={String(cls.schoolClassId)}
-                >
-                  Grade {cls.grade}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={selectedSectionId || "all"}
-            onValueChange={(value) =>
-              setSelectedSectionId(normalizeFilterValue(value))
-            }
-            disabled={!selectedClassId}
-          >
-            <SelectTrigger className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm">
-              <SelectValue placeholder="All sections" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All sections</SelectItem>
-              {sections.map((section) => (
-                <SelectItem
-                  key={section.sectionId}
-                  value={String(section.sectionId)}
-                >
-                  {section.sectionName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
+          <DebouncedSearchInput
+            value={debouncedSearch}
+            placeholder="Search students..."
+            onChange={(val) => {
+              setDebouncedSearch(val);
+              setPageNum(1);
+            }}
+            className="w-48 lg:w-64"
+            inputClassName="h-9"
+          />
+          <FilterDropdown
+            icon={GraduationCap}
+            placeholder="All classes"
+            value={selectedClassId}
+            onValueChange={setSelectedClassId}
+            options={[
+              { value: "all", label: "All classes" },
+              ...classes.map((c) => ({
+                value: String(c.schoolClassId),
+                label: `Grade ${c.grade}`,
+              })),
+            ]}
+            className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm"
+          />
+          <FilterDropdown
+            icon={Layers}
+            placeholder="All sections"
+            value={selectedSectionId}
+            onValueChange={setSelectedSectionId}
+            options={[
+              { value: "all", label: "All sections" },
+              ...sections.map((s) => ({
+                value: String(s.sectionId),
+                label: s.sectionName,
+              })),
+            ]}
+            disabled={selectedClassId === "all"}
+            className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm"
+          />
+          <FilterDropdown
+            icon={UserCheck}
+            placeholder="Assignment"
             value={hasSectionAssignment}
             onValueChange={(value) => {
               setHasSectionAssignment(value);
               setPageNum(1);
             }}
-          >
-            <SelectTrigger className="h-9 w-[110px] sm:w-[120px] text-xs sm:text-sm">
-              <SelectValue placeholder="Assignment" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: "all", label: "All" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            className="h-9 w-[110px] sm:w-[120px] text-xs sm:text-sm"
+          />
           <div className="flex border rounded-md overflow-hidden">
             <button
               onClick={() => setViewMode("grid")}
@@ -848,16 +522,11 @@ export default function StudentsPageClient() {
               <List className="h-4 w-4" />
             </button>
           </div>
-          {activeFiltersCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-2 text-xs text-[#185FA5] hover:bg-transparent hover:text-[#0C447C]"
-              onClick={handleClearFilters}
-            >
-              Clear
-            </Button>
-          )}
+          <ClearFiltersButton
+            activeFiltersCount={activeFiltersCount}
+            onClick={handleClearFilters}
+            className="h-9 px-2 text-xs"
+          />
         </div>
       </div>
 

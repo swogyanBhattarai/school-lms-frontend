@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Input } from "@/app/_components/ui/input";
+import ClearFiltersButton from "@/app/_components/ui/ClearFiltersButton";
 import {
   Select,
   SelectContent,
@@ -1886,20 +1887,15 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
               </SelectContent>
             </Select>
 
-            {activeFiltersCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSelectedClassId("all");
-                  setSelectedSectionId("all");
-                  setSelectedFeeStatus("all");
-                }}
-                className="h-10 px-3 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 rounded-xl"
-              >
-                <X className="h-4 w-4 mr-1" /> Clear
-              </Button>
-            )}
+            <ClearFiltersButton
+              activeFiltersCount={activeFiltersCount}
+              onClick={() => {
+                setSelectedClassId("all");
+                setSelectedSectionId("all");
+                setSelectedFeeStatus("all");
+              }}
+              className="h-10 px-3 text-xs"
+            />
           </div>
         </div>
       </div>

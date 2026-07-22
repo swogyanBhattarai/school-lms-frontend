@@ -343,7 +343,7 @@ export default function SubjectsPageClient() {
       {!subjectsLoading && !subjectsError && filteredSubjects.length > 0 && (
         <>
         {viewMode === "grid" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredSubjects.map((subject, index) => {
             const Icon = getSubjectIcon(subject.subjectName);
             const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];

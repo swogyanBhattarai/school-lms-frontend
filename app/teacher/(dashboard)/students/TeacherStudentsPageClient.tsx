@@ -8,7 +8,6 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  Search,
   Eye,
   ChevronLeft,
   ChevronRight,
@@ -19,9 +18,10 @@ import {
   UserCheck,
   Filter,
   X,
+  GraduationCap,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
-import { Input } from "@/app/_components/ui/input";
 import {
   Select,
   SelectContent,
@@ -29,6 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/app/_components/ui/select";
+import DebouncedSearchInput from "@/app/_components/ui/DebouncedSearchInput";
+import FilterDropdown from "@/app/_components/ui/FilterDropdown";
+import ClearFiltersButton from "@/app/_components/ui/ClearFiltersButton";
 import { useToast } from "@/app/_components/ui/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { getStudents } from "@/lib/api/student";
@@ -105,12 +108,14 @@ export default function TeacherStudentPageClient() {
   const { toast } = useToast();
 
   // URL params initialization
-  const [search, setSearch] = useState(searchParams?.get("studentName") || "");
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    searchParams?.get("studentName") || "",
+  );
   const [selectedClassId, setSelectedClassId] = useState<string>(
-    searchParams?.get("classId") || "",
+    searchParams?.get("classId") || "all",
   );
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
-    searchParams?.get("sectionId") || "",
+    searchParams?.get("sectionId") || "all",
   );
   const [sortBy, setSortBy] = useState(
     searchParams?.get("sortBy") || "studentId",
@@ -128,22 +133,6 @@ export default function TeacherStudentPageClient() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
-  const normalizeFilterValue = useCallback((value: string) => {
-    return value === "all" ? "" : value;
-  }, []);
-
-  // Debounced search
-  const [debouncedSearch, setDebouncedSearch] = useState(search);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPageNum(1); // Reset to first page on search
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [search]);
-
   // Fetch students
   const studentsQueryParams = useMemo(
     () => ({
@@ -153,11 +142,11 @@ export default function TeacherStudentPageClient() {
       pageNum,
       studentName: debouncedSearch.trim() || undefined,
       classId:
-        selectedClassId && selectedClassId !== "all"
+        selectedClassId !== "all"
           ? Number(selectedClassId)
           : undefined,
       sectionId:
-        selectedSectionId && selectedSectionId !== "all"
+        selectedSectionId !== "all"
           ? Number(selectedSectionId)
           : undefined,
       hasSectionAssignment:
@@ -204,7 +193,7 @@ export default function TeacherStudentPageClient() {
   const { data: sections = [] } = useQuery<SectionResponse[]>({
     queryKey: ["class-sections", selectedClassId],
     queryFn: () => getSectionsBySchoolClassId(Number(selectedClassId)),
-    enabled: Boolean(selectedClassId),
+    enabled: selectedClassId !== "all",
   });
 
   const selectedSectionName = useMemo(() => {
@@ -215,16 +204,16 @@ export default function TeacherStudentPageClient() {
 
   // Reset section when class changes
   useEffect(() => {
-    if (selectedClassId) {
+    if (selectedClassId !== "all") {
       // Check if current section belongs to selected class
       const sectionExists = sections.some(
         (s) => String(s.sectionId) === selectedSectionId,
       );
       if (!sectionExists) {
-        setSelectedSectionId("");
+        setSelectedSectionId("all");
       }
     } else {
-      setSelectedSectionId("");
+      setSelectedSectionId("all");
     }
   }, [selectedClassId, sections, selectedSectionId]);
 
@@ -236,8 +225,8 @@ export default function TeacherStudentPageClient() {
 
   // Active filters count
   const activeFiltersCount = [
-    selectedClassId,
-    selectedSectionId,
+    selectedClassId !== "all" ? selectedClassId : "",
+    selectedSectionId !== "all" ? selectedSectionId : "",
     hasSectionAssignment !== "all" ? hasSectionAssignment : "",
   ].filter(Boolean).length;
 
@@ -246,10 +235,10 @@ export default function TeacherStudentPageClient() {
     const params = new URLSearchParams();
     if (debouncedSearch.trim())
       params.set("studentName", debouncedSearch.trim());
-    if (selectedClassId && selectedClassId !== "all") {
+    if (selectedClassId !== "all") {
       params.set("classId", selectedClassId);
     }
-    if (selectedSectionId && selectedSectionId !== "all") {
+    if (selectedSectionId !== "all") {
       params.set("sectionId", selectedSectionId);
     }
     if (hasSectionAssignment && hasSectionAssignment !== "all") {
@@ -288,10 +277,9 @@ export default function TeacherStudentPageClient() {
   };
 
   const handleClearFilters = () => {
-    setSearch("");
     setDebouncedSearch("");
-    setSelectedClassId("");
-    setSelectedSectionId("");
+    setSelectedClassId("all");
+    setSelectedSectionId("all");
     setHasSectionAssignment("all");
     setPageNum(1);
   };
@@ -364,23 +352,15 @@ export default function TeacherStudentPageClient() {
 
         {/* Mobile Search + Filter Bar */}
         <div className="flex items-center gap-2 w-full sm:hidden">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search students..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-10 rounded-xl border-slate-200 bg-white text-sm focus-visible:ring-[#185FA5]/20"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-              </button>
-            )}
-          </div>
+          <DebouncedSearchInput
+            value={debouncedSearch}
+            placeholder="Search students..."
+            onChange={(val) => {
+              setDebouncedSearch(val);
+              setPageNum(1);
+            }}
+            className="flex-1"
+          />
 
           <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
             <SheetTrigger asChild>
@@ -476,27 +456,20 @@ export default function TeacherStudentPageClient() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
                     Class
                   </label>
-                  <Select
-                    value={selectedClassId || "all"}
-                    onValueChange={(value) =>
-                      setSelectedClassId(normalizeFilterValue(value))
-                    }
-                  >
-                    <SelectTrigger className="h-10 text-sm w-full rounded-xl">
-                      <SelectValue placeholder="All classes" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All classes</SelectItem>
-                      {classes.map((cls) => (
-                        <SelectItem
-                          key={cls.schoolClassId}
-                          value={String(cls.schoolClassId)}
-                        >
-                          Grade {cls.grade}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FilterDropdown
+                    icon={GraduationCap}
+                    placeholder="All classes"
+                    value={selectedClassId}
+                    onValueChange={setSelectedClassId}
+                    options={[
+                      { value: "all", label: "All classes" },
+                      ...classes.map((c) => ({
+                        value: String(c.schoolClassId),
+                        label: `Grade ${c.grade}`,
+                      })),
+                    ]}
+                    className="w-full"
+                  />
                 </div>
 
                 {/* Section Filter */}
@@ -504,28 +477,21 @@ export default function TeacherStudentPageClient() {
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 block">
                     Section
                   </label>
-                  <Select
-                    value={selectedSectionId || "all"}
-                    onValueChange={(value) =>
-                      setSelectedSectionId(normalizeFilterValue(value))
-                    }
-                    disabled={!selectedClassId}
-                  >
-                    <SelectTrigger className="h-10 text-sm w-full rounded-xl">
-                      <SelectValue placeholder="All sections" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All sections</SelectItem>
-                      {sections.map((section) => (
-                        <SelectItem
-                          key={section.sectionId}
-                          value={String(section.sectionId)}
-                        >
-                          {section.sectionName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FilterDropdown
+                    icon={Layers}
+                    placeholder="All sections"
+                    value={selectedSectionId}
+                    onValueChange={setSelectedSectionId}
+                    options={[
+                      { value: "all", label: "All sections" },
+                      ...sections.map((s) => ({
+                        value: String(s.sectionId),
+                        label: s.sectionName,
+                      })),
+                    ]}
+                    disabled={selectedClassId === "all"}
+                    className="w-full"
+                  />
                 </div>
 
                 <div className="border-t border-slate-100" />
@@ -586,74 +552,60 @@ export default function TeacherStudentPageClient() {
 
         {/* Desktop Filters */}
         <div className="hidden sm:flex items-center gap-2 sm:gap-3">
-          <div className="relative w-48 lg:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search students..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm"
-            />
-          </div>
-          <Select
-            value={selectedClassId || "all"}
-            onValueChange={(value) =>
-              setSelectedClassId(normalizeFilterValue(value))
-            }
-          >
-            <SelectTrigger className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm">
-              <SelectValue placeholder="All classes" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All classes</SelectItem>
-              {classes.map((cls) => (
-                <SelectItem
-                  key={cls.schoolClassId}
-                  value={String(cls.schoolClassId)}
-                >
-                  Grade {cls.grade}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={selectedSectionId || "all"}
-            onValueChange={(value) =>
-              setSelectedSectionId(normalizeFilterValue(value))
-            }
-            disabled={!selectedClassId}
-          >
-            <SelectTrigger className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm">
-              <SelectValue placeholder="All sections" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All sections</SelectItem>
-              {sections.map((section) => (
-                <SelectItem
-                  key={section.sectionId}
-                  value={String(section.sectionId)}
-                >
-                  {section.sectionName}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
+          <DebouncedSearchInput
+            value={debouncedSearch}
+            placeholder="Search students..."
+            onChange={(val) => {
+              setDebouncedSearch(val);
+              setPageNum(1);
+            }}
+            className="w-48 lg:w-64"
+            inputClassName="h-9"
+          />
+          <FilterDropdown
+            icon={GraduationCap}
+            placeholder="All classes"
+            value={selectedClassId}
+            onValueChange={setSelectedClassId}
+            options={[
+              { value: "all", label: "All classes" },
+              ...classes.map((c) => ({
+                value: String(c.schoolClassId),
+                label: `Grade ${c.grade}`,
+              })),
+            ]}
+            className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm"
+          />
+          <FilterDropdown
+            icon={Layers}
+            placeholder="All sections"
+            value={selectedSectionId}
+            onValueChange={setSelectedSectionId}
+            options={[
+              { value: "all", label: "All sections" },
+              ...sections.map((s) => ({
+                value: String(s.sectionId),
+                label: s.sectionName,
+              })),
+            ]}
+            disabled={selectedClassId === "all"}
+            className="h-9 w-[130px] sm:w-[140px] text-xs sm:text-sm"
+          />
+          <FilterDropdown
+            icon={UserCheck}
+            placeholder="Assignment"
             value={hasSectionAssignment}
             onValueChange={(value) => {
               setHasSectionAssignment(value);
               setPageNum(1);
             }}
-          >
-            <SelectTrigger className="h-9 w-[110px] sm:w-[120px] text-xs sm:text-sm">
-              <SelectValue placeholder="Assignment" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: "all", label: "All" },
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            className="h-9 w-[110px] sm:w-[120px] text-xs sm:text-sm"
+          />
           <div className="flex border rounded-md overflow-hidden">
             <button
               onClick={() => setViewMode("grid")}
@@ -678,16 +630,11 @@ export default function TeacherStudentPageClient() {
               <List className="h-4 w-4" />
             </button>
           </div>
-          {activeFiltersCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 px-2 text-xs text-[#185FA5] hover:bg-transparent hover:text-[#0C447C]"
-              onClick={handleClearFilters}
-            >
-              Clear
-            </Button>
-          )}
+          <ClearFiltersButton
+            activeFiltersCount={activeFiltersCount}
+            onClick={handleClearFilters}
+            className="h-9 px-2 text-xs"
+          />
         </div>
       </div>
 

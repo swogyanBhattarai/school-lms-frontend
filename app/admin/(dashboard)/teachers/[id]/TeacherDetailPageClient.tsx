@@ -18,7 +18,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   Filter,
-  RotateCcw,
   ArrowUpDown,
   User,
   Phone,
@@ -44,6 +43,8 @@ import {
 } from "@/app/_components/ui/select";
 import { cn, getApiErrorMessage } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
+import MobileFilterBar from "@/app/_components/ui/MobileFilterBar";
+import ClearFiltersButton from "@/app/_components/ui/ClearFiltersButton";
 import { useUser } from "@/lib/contexts/UserContext";
 import { getClassAssignmentsByTeacherId } from "@/lib/api/classAssignment";
 import { getActiveSchoolClasses } from "@/lib/api/schoolClass";
@@ -90,7 +91,6 @@ export default function TeacherDetailPageClient() {
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [isQuickOverviewFilter, setIsQuickOverviewFilter] = useState(false);
   const [activeTab, setActiveTab] = useState("attendance");
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Attendance date filter — defaults to today like section diary page
   const [selectedDate, setSelectedDate] = useState<string>(getTodayADString());
@@ -766,108 +766,42 @@ export default function TeacherDetailPageClient() {
                   <SelectItem value="students">Students</SelectItem>
                 </SelectContent>
               </Select>
-              {activeFiltersCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="h-10 px-3 rounded-xl shrink-0"
-                >
-                  <RotateCcw className="h-4 w-4 mr-1.5" />
-                  Clear
-                </Button>
-              )}
+              <ClearFiltersButton
+                activeFiltersCount={activeFiltersCount}
+                onClick={clearFilters}
+              />
             </div>
-            {/* Mobile filter row */}
-            <div className="sm:hidden space-y-2">
-              {/* Collapsible Toggle */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowMobileFilters(!showMobileFilters)}
-                className="w-full justify-between rounded-xl h-10 text-sm border-slate-300"
-              >
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-slate-500" />
-                  <span>Filters & Search</span>
-                  {activeFiltersCount > 0 && (
-                    <Badge className="bg-slate-800 text-white text-[10px] h-5 w-5 rounded-full flex items-center justify-center p-0">
-                      {activeFiltersCount}
-                    </Badge>
-                  )}
-                </div>
-                {showMobileFilters ? (
-                  <ChevronUp className="h-4 w-4 text-slate-500" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 text-slate-500" />
-                )}
-              </Button>
-              {/* Filter Content */}
-              <div className={cn("space-y-2", showMobileFilters ? "block" : "hidden")}>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search classes..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-10 h-10 bg-white border-slate-200 text-sm rounded-xl w-full"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <MiniCalendar
-                    value={selectedDateBS}
-                    onChange={(date) => setSelectedDate(date)}
-                    placeholder="Select date"
-                  />
-                  <Select value={gradeFilter} onValueChange={setGradeFilter}>
-                    <SelectTrigger className="h-10 bg-white text-xs rounded-xl">
-                      <GraduationCap className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                      <SelectValue placeholder="Grade" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      {uniqueGrades.map((grade) => (
-                        <SelectItem key={grade} value={grade}>
-                          Grade {grade}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Select
-                    value={sortBy}
-                    onValueChange={(
-                      value: "grade" | "section" | "subject" | "students",
-                    ) => setSortBy(value)}
-                  >
-                    <SelectTrigger className="h-10 bg-white text-xs rounded-xl flex-1">
-                      <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 shrink-0" />
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="grade">Grade</SelectItem>
-                      <SelectItem value="section">Section</SelectItem>
-                      <SelectItem value="subject">Subject</SelectItem>
-                      <SelectItem value="students">Students</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {activeFiltersCount > 0 && (
-                  <div className="pt-3 border-t border-slate-200">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={clearFilters}
-                      className="w-full h-9 rounded-xl text-xs border-slate-300"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                      Clear Filters
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Mobile filter bar */}
+            <MobileFilterBar
+              searchValue={search}
+              onSearchChange={setSearch}
+              searchPlaceholder="Search classes..."
+              datePicker={
+                <MiniCalendar
+                  value={selectedDateBS}
+                  onChange={(date) => setSelectedDate(date)}
+                  placeholder="Select date"
+                />
+              }
+              gradeValue={gradeFilter}
+              onGradeChange={setGradeFilter}
+              gradeOptions={[
+                { value: "all", label: "All" },
+                ...uniqueGrades.map((g) => ({ value: g, label: `Grade ${g}` })),
+              ]}
+              sortValue={sortBy}
+              onSortChange={(v) =>
+                setSortBy(v as "grade" | "section" | "subject" | "students")
+              }
+              sortOptions={[
+                { value: "grade", label: "Grade" },
+                { value: "section", label: "Section" },
+                { value: "subject", label: "Subject" },
+                { value: "students", label: "Students" },
+              ]}
+              activeFiltersCount={activeFiltersCount}
+              onClearFilters={clearFilters}
+            />
 
             {/* Attendance List */}
             {filteredAssignments.length === 0 ? (

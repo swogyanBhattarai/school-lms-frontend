@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 
 const ACCESS_COOKIE = "accessKey";
 
+console.log("authMiddleware module loaded"); // top of file, outside any function
+
 type JwtPayload = {
   exp?: number;
   roles?: string[];
@@ -37,17 +39,20 @@ let slugCache: { slugs: string[]; timestamp: number } | null = null;
 const CACHE_TTL = 5 * 60 * 1000;
 
 async function getValidSlugs(): Promise<string[]> {
+  // Return cached slugs if still fresh
   if (slugCache && Date.now() - slugCache.timestamp < CACHE_TTL) {
     return slugCache.slugs;
   }
+
+  const url = `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"}/api/school/slugs`;
+
   try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080"}/api/school/slugs`,
-    );
+    const res = await fetch(url);
     const slugs: string[] = await res.json();
     slugCache = { slugs, timestamp: Date.now() };
     return slugs;
-  } catch {
+  } catch (error) {
+    console.error("Slug fetch failed:", error);
     return slugCache?.slugs ?? [];
   }
 }
@@ -101,50 +106,52 @@ function isPublicPath(pathname: string): boolean {
 
 // ── Middleware ──
 export async function middleware(request: NextRequest) {
-  const { pathname, hostname } = request.nextUrl;
+  const { pathname } = request.nextUrl;
+  const hostname = request.headers.get("host")?.split(":")[0] ?? "";
+  console.log(`[proxy] ${pathname} host=${hostname}`);
 
-  // Skip Next.js internals
   if (pathname.startsWith("/_next") || pathname === "/favicon.ico") {
     return NextResponse.next();
   }
 
-  // Allow API calls through (login, slug fetch, etc.)
   if (pathname.startsWith("/api")) {
     return NextResponse.next();
   }
 
-  // ── Subdomain validation ──
   let schoolSlug: string | null = null;
 
   if (hostname === "localhost") {
-    // Bare localhost is allowed for development — no slug needed
+    console.log("[proxy] bare localhost, skipping subdomain check");
   } else {
     schoolSlug = extractSubdomain(hostname);
+    console.log(`[proxy] extracted slug: ${schoolSlug}`);
     if (!schoolSlug || schoolSlug === "www") {
+      console.log("[proxy] no valid slug, redirecting to /not-found");
       return NextResponse.redirect(new URL("/not-found", request.url));
     }
 
     const validSlugs = await getValidSlugs();
+    console.log(`[proxy] validSlugs=${JSON.stringify(validSlugs)}`);
 
-    // If the slug fetch fails (empty list), still allow the request through
-    // so the backend can validate at login time rather than hard-blocking.
     if (validSlugs.length > 0 && !validSlugs.includes(schoolSlug)) {
+      console.log(`[proxy] slug "${schoolSlug}" not in validSlugs, redirecting`);
       return NextResponse.redirect(new URL("/not-found", request.url));
     }
   }
 
-  // ── Public paths (login, not-found) ──
   if (isPublicPath(pathname)) {
+    console.log("[proxy] public path, passing through");
     const res = NextResponse.next();
     if (schoolSlug) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
     return res;
   }
 
-  // ── Auth check ──
   const token = request.cookies.get(ACCESS_COOKIE)?.value;
+  console.log(`[proxy] token present=${!!token}, expired=${token ? isTokenExpired(token) : "n/a"}`);
   if (!token || isTokenExpired(token)) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    console.log("[proxy] no/expired token, redirecting to /login");
     return NextResponse.redirect(url);
   }
 
@@ -180,3 +187,5 @@ export async function middleware(request: NextRequest) {
   if (schoolSlug) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
   return res;
 }
+
+// config is exported from proxy.ts directly (Next.js requires it to be statically analyzable)

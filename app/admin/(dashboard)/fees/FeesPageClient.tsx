@@ -2001,7 +2001,7 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
 
                             {/* Mobile: Show collected / total + overdue */}
                             <div className="sm:hidden flex items-center justify-between mt-1.5">
-                              <span className="text-xs font-medium text-slate-700">
+                              <span className="text-[11px] font-medium text-slate-700">
                                 {formatCurrency(cls.totalCollected)} /{" "}
                                 {formatCurrency(cls.totalExpected)}
                               </span>
@@ -2089,13 +2089,13 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
                                       </Badge>
                                     </div>
                                     <div className="flex items-center justify-between mt-2 ml-9">
-                                      <span className="text-xs font-semibold text-slate-700">
+                                      <span className="text-[11px] font-semibold text-slate-700">
                                         {formatCurrency(section.totalCollected)}{" "}
                                         /{" "}
                                         {formatCurrency(section.totalExpected)}
                                       </span>
                                       {section.overdueAmount > 0 && (
-                                        <span className="text-[11px] font-medium text-red-500">
+                                        <span className="text-[10px] font-medium text-red-500">
                                           {formatCurrency(
                                             section.overdueAmount,
                                           )}{" "}

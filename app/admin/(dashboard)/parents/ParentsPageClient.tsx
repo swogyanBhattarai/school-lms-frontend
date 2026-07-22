@@ -471,7 +471,7 @@ export default function ParentsPageClient() {
               { value: "childrenCount", label: "Children" },
             ]}
             sortDirValue={sortDir}
-            onSortDirChange={setSortDir}
+            onSortDirChange={(v) => setSortDir(v as SortDir)}
             activeFiltersCount={activeFiltersCount}
             onClearFilters={handleClearFilters}
           />

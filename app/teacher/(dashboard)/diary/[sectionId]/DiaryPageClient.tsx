@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Calendar, Save, FileText } from "lucide-react";
 
@@ -14,14 +14,17 @@ import { getClassAssignmentsByTeacherId } from "@/lib/api/teacher";
 import { createDiary } from "@/lib/api/diary";
 import type { DiaryCreate } from "@/types/lms";
 
-export default function DiaryPageClient() {
+export default function DiaryPageClient({
+  initialSubjectId,
+}: {
+  initialSubjectId?: string;
+}) {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const sectionId = parseInt(params.sectionId as string);
-  const subjectId = parseInt(searchParams?.get("subjectId") || "0");
+  const subjectId = parseInt(initialSubjectId || "0");
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");

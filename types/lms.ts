@@ -287,6 +287,34 @@ export interface TeacherUpdate {
   teacherPhoneNumber: string;
 }
 
+// --- Accountant DTOs ---
+export type AccountantModel = {
+  accountantId: number;
+  accountantName: string;
+  accountantPhoneNumber: string;
+  editPermission: boolean;
+  user?: UserModel;
+  school?: SchoolModel;
+};
+
+export interface AccountantResponse {
+  accountantId: number;
+  accountantName: string;
+  accountantPhoneNumber: string;
+  editPermission: boolean;
+}
+
+export interface AccountantCreate {
+  accountantName: string;
+  accountantPhoneNumber: string;
+}
+
+export interface AccountantUpdate {
+  accountantName: string;
+  accountantPhoneNumber: string;
+  editPermission?: boolean;
+}
+
 // --- Subject DTOs ---
 export interface SubjectResponse {
   subjectId: number;
@@ -353,6 +381,39 @@ export interface ParentResponse {
   parentPhoneNumber: string;
 }
 
+export interface ParentListResponse {
+  parentId: number;
+  parentName: string;
+  parentPhoneNumber: string;
+  totalChildren: number;
+  childrenNames: string[];
+}
+
+export interface ParentDashboardParams {
+  search?: string;
+  sortBy?: string;
+  sortDir?: string;
+  pageSize?: number;
+  pageNum?: number;
+}
+
+export interface ParentStudentDetails {
+  studentId: number;
+  studentName: string;
+  grade: string;
+  sectionId: number;
+  sectionName: string;
+  academicYear: string;
+  isActive: boolean;
+}
+
+export interface ParentDetails {
+  parentId: number;
+  parentName: string;
+  parentNumber: string;
+  children: ParentStudentDetails[];
+}
+
 export type ParentModel = {
   parentId: number;
   parentName: string;
@@ -360,7 +421,7 @@ export type ParentModel = {
   // children, school omitted for brevity
 };
 
-export type UserRoles = 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT';
+export type UserRoles = 'ADMIN' | 'TEACHER' | 'STUDENT' | 'PARENT' | 'ACCOUNTANT';
 
 export type UserModel = {
   userId: number;
@@ -369,6 +430,7 @@ export type UserModel = {
   role: UserRoles;
   parent?: ParentModel;
   teacher?: TeacherModel;
+  accountant?: AccountantModel;
   // school, createdAt, updatedAt omitted for brevity
 };
 
@@ -419,7 +481,6 @@ export interface StudentAttendance {
 
 export interface MassAttendance {
   studentAttendances: StudentAttendance[];
-  attendanceDate: string;
 }
 
 export interface AttendanceResponse {
@@ -536,6 +597,16 @@ export interface TeacherUser {
   teacherUsername: string;
 }
 
+export interface ParentUser {
+  parentId: number;
+  parentUsername: string;
+}
+
+export interface AccountantUser {
+  accountantId: number;
+  accountantUsername: string;
+}
+
 export interface UserUpdateDTO {
   username: string;
   password: string | null;
@@ -546,6 +617,8 @@ export interface CurrentUserInfoResponse {
   username: string;
   userRole: string;
   schoolId: number;
+  parentId: number | null;
+  teacherId: number | null;
 }
 
 // --- StudentFee Enums ---

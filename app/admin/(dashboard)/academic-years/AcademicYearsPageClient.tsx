@@ -779,6 +779,13 @@ export default function AcademicYearsPageClient() {
                       <span className="sm:hidden">{fmtBSOnly(year.endDate)}</span>
                       <span className="hidden sm:inline">{fmtDateWithBS(year.endDate)}</span>
                     </div>
+                    {/* Mobile AD date range */}
+                    <div className="sm:hidden flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5 whitespace-normal overflow-hidden">
+                      <CalendarDays className="h-3 w-3 flex-shrink-0" />
+                      <span>{fmtDate(year.startDate)}</span>
+                      <span className="text-muted-foreground/40">→</span>
+                      <span>{fmtDate(year.endDate)}</span>
+                    </div>
                     {/* Mobile stats */}
                     <div className="sm:hidden flex items-center gap-3 text-[10px] text-muted-foreground mt-1">
                       <span className="flex items-center gap-1">
@@ -1217,7 +1224,7 @@ export default function AcademicYearsPageClient() {
 
       {/* Class Dialog */}
       <Dialog open={classDialog} onOpenChange={setClassDialog}>
-        <DialogContent className="sm:max-w-md p-0 gap-0 rounded-2xl">
+        <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto rounded-2xl">
           <div className="px-6 pt-6 pb-4">
             <DialogHeader className="space-y-1.5">
               <DialogTitle className="text-xl font-semibold tracking-tight">
@@ -1264,7 +1271,7 @@ export default function AcademicYearsPageClient() {
 
       {/* Section Dialog */}
       <Dialog open={sectionDialog} onOpenChange={setSectionDialog}>
-        <DialogContent className="sm:max-w-md p-0 gap-0 rounded-2xl">
+        <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto rounded-2xl">
           <div className="px-6 pt-6 pb-4">
             <DialogHeader className="space-y-1.5">
               <DialogTitle className="text-xl font-semibold tracking-tight">

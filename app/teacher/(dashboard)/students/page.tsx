@@ -1,19 +1,31 @@
 // app/teacher/(dashboard)/students/page.tsx
-import { Suspense } from "react";
 import TeacherStudentsPageClient from "./TeacherStudentsPageClient";
 
-function LoadingFallback() {
+export default async function TeacherStudentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    studentName?: string;
+    classId?: string;
+    sectionId?: string;
+    sortBy?: string;
+    sortDir?: string;
+    pageNum?: string;
+    pageSize?: string;
+    hasSectionAssignment?: string;
+  }>;
+}) {
+  const params = await searchParams;
   return (
-    <div className="flex items-center justify-center py-20">
-      <span className="h-6 w-6 animate-spin rounded-full border-[3px] border-slate-200 border-t-emerald-500" />
-    </div>
-  );
-}
-
-export default function TeacherStudentsPage() {
-  return (
-    <Suspense fallback={<LoadingFallback />}>
-      <TeacherStudentsPageClient />
-    </Suspense>
+    <TeacherStudentsPageClient
+      initialStudentName={params.studentName}
+      initialClassId={params.classId}
+      initialSectionId={params.sectionId}
+      initialSortBy={params.sortBy}
+      initialSortDir={params.sortDir}
+      initialPageNum={params.pageNum}
+      initialPageSize={params.pageSize}
+      initialHasSectionAssignment={params.hasSectionAssignment}
+    />
   );
 }

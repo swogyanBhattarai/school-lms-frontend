@@ -46,7 +46,7 @@ export function NepaliCalendar({
     month: number;
     day: number;
   } | null>(null);
-  const [showAD, setShowAD] = useState(false);
+  const [showAD, setShowAD] = useState(true);
 
   const monthDays = getBSMonthDays(currentYear, currentMonth);
   const startDay = getBSMonthStartDay(currentYear, currentMonth);

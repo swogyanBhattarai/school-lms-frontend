@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -96,14 +96,17 @@ interface StudentState {
   status: AttendanceStatus | "UNMARKED";
 }
 
-export default function AttendancePageClient() {
+export default function AttendancePageClient({
+  initialSubjectId,
+}: {
+  initialSubjectId?: string;
+}) {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const sectionId = parseInt(params.sectionId as string);
-  const subjectId = parseInt(searchParams?.get("subjectId") || "0");
+  const subjectId = parseInt(initialSubjectId || "0");
 
   const [search, setSearch] = useState("");
   const [studentStates, setStudentStates] = useState<StudentState[]>([]);
@@ -161,10 +164,10 @@ export default function AttendancePageClient() {
   const isAttendanceLocked =
     isAttendanceLoaded && (attendanceResponse?.length ?? 0) > 0;
 
-  // Mass Attendance Mutation
+  // Mass Attendance Mutation — teacher always saves for today
   const attendanceMutation = useMutation({
     mutationFn: (payload: MassAttendance) =>
-      createMassAttendance(sectionId, subjectId, payload),
+      createMassAttendance(sectionId, subjectId, payload, new Date().toISOString().split("T")[0]),
     onSuccess: () => {
       toast({
         title: "Attendance Saved",
@@ -236,7 +239,6 @@ export default function AttendancePageClient() {
 
   const confirmSave = () => {
     const payload: MassAttendance = {
-      attendanceDate: new Date().toISOString().split("T")[0],
       studentAttendances: studentStates
         .filter((s) => s.status !== "UNMARKED")
         .map((s) => ({

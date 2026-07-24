@@ -46,11 +46,13 @@ export const createAttendance = async (
 export const createMassAttendance = async (
   sectionId: number,
   subjectId: number,
-  payload: MassAttendance
+  payload: MassAttendance,
+  attendanceDate: string
 ): Promise<string> => {
   const response = await api.post(
     `/api/attendance/section/${sectionId}/subject/${subjectId}`,
-    payload
+    payload,
+    { params: { attendanceDate } }
   );
   return response.data;
 };
@@ -62,11 +64,13 @@ export const createMassAttendanceByTeacher = async (
   sectionId: number,
   subjectId: number,
   teacherId: number,
-  payload: MassAttendance
+  payload: MassAttendance,
+  attendanceDate: string
 ): Promise<string> => {
   const response = await api.post(
     `/api/attendance/section/${sectionId}/subject/${subjectId}/teacher/${teacherId}`,
-    payload
+    payload,
+    { params: { attendanceDate } }
   );
   return response.data;
 };

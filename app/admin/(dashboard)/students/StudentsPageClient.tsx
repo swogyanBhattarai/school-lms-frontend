@@ -1,7 +1,7 @@
 // app/admin/(dashboard)/students/StudentsPageClient.tsx
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   Phone,
@@ -111,33 +111,50 @@ const AVATAR_COLORS = [
 
 
 
-export default function StudentsPageClient() {
+export default function StudentsPageClient({
+  initialStudentName,
+  initialClassId,
+  initialSectionId,
+  initialSortBy,
+  initialSortDir,
+  initialPageNum,
+  initialPageSize,
+  initialHasSectionAssignment,
+}: {
+  initialStudentName?: string;
+  initialClassId?: string;
+  initialSectionId?: string;
+  initialSortBy?: string;
+  initialSortDir?: string;
+  initialPageNum?: string;
+  initialPageSize?: string;
+  initialHasSectionAssignment?: string;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   // URL params initialization
   const [debouncedSearch, setDebouncedSearch] = useState(
-    searchParams?.get("studentName") || "",
+    initialStudentName || "",
   );
   const [selectedClassId, setSelectedClassId] = useState<string>(
-    searchParams?.get("classId") || "all",
+    initialClassId || "all",
   );
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
-    searchParams?.get("sectionId") || "all",
+    initialSectionId || "all",
   );
   const [sortBy, setSortBy] = useState(
-    searchParams?.get("sortBy") || "studentId",
+    initialSortBy || "studentId",
   );
-  const [sortDir, setSortDir] = useState(searchParams?.get("sortDir") || "ASC");
+  const [sortDir, setSortDir] = useState(initialSortDir || "ASC");
   const [pageNum, setPageNum] = useState(
-    Number(searchParams?.get("pageNum")) || 1,
+    Number(initialPageNum) || 1,
   );
   const [pageSize, setPageSize] = useState(
-    Number(searchParams?.get("pageSize")) || 20,
+    Number(initialPageSize) || 20,
   );
   const [hasSectionAssignment, setHasSectionAssignment] = useState<string>(
-    searchParams?.get("hasSectionAssignment") || "all",
+    initialHasSectionAssignment || "all",
   );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 

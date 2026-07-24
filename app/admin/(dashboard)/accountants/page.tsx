@@ -1,6 +1,6 @@
-// app/admin/(dashboard)/teachers/page.tsx
+// app/admin/(dashboard)/accountants/page.tsx
 "use client";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Plus,
@@ -27,6 +27,8 @@ import {
   Users,
   Pencil,
   MessageSquare,
+  DollarSign,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Input } from "@/app/_components/ui/input";
@@ -52,14 +54,13 @@ import { cn, getApiErrorMessage } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  createTeacher,
-  getAllTeachers,
-  deleteTeacher,
-} from "@/lib/api/teacher";
+  createAccountant,
+  getAllAccountants,
+  deleteAccountant,
+} from "@/lib/api/accountant";
 import type {
-  PageResponse,
-  TeacherCreate,
-  TeacherResponse,
+  AccountantCreate,
+  AccountantResponse,
 } from "@/types/lms";
 
 const STATUS_CONFIG = {
@@ -99,104 +100,104 @@ const AVATAR_COLORS = [
 
 interface ActivityItem {
   id: number;
-  teacherId: number;
-  teacherName: string;
+  accountantId: number;
+  accountantName: string;
   action: string;
   details: string;
   timestamp: string;
-  type: "grade" | "attendance" | "leave" | "assignment" | "profile" | "diary" | "announcement";
+  type: "payment" | "fee" | "report" | "invoice" | "profile" | "reconcile" | "announcement";
 }
 
 const MOCK_ACTIVITIES: ActivityItem[] = [
   {
     id: 1,
-    teacherId: 1,
-    teacherName: "Ram Prasad Bhattarai",
-    action: "Grades submitted",
-    details: "Class 10 · Mathematics · Mid-term Exam",
+    accountantId: 1,
+    accountantName: "Ram Prasad Bhattarai",
+    action: "Payment collected",
+    details: "Class 10 · Monthly Fee · Rs. 5,000",
     timestamp: "Today, 9:41 AM",
-    type: "grade",
+    type: "payment",
   },
   {
     id: 2,
-    teacherId: 5,
-    teacherName: "Nabin KC",
-    action: "Attendance marked",
-    details: "Class 9 · Computer Science · Period 1",
+    accountantId: 5,
+    accountantName: "Nabin KC",
+    action: "Fee structure updated",
+    details: "Class 9 · Annual fee revised",
     timestamp: "Today, 8:15 AM",
-    type: "attendance",
+    type: "fee",
   },
   {
     id: 3,
-    teacherId: 3,
-    teacherName: "Bikash Tamang",
-    action: "Leave requested",
-    details: "Medical leave · Dec 18–20 · Approved",
+    accountantId: 3,
+    accountantName: "Bikash Tamang",
+    action: "Report generated",
+    details: "Monthly collection report · December",
     timestamp: "Yesterday, 4:30 PM",
-    type: "leave",
+    type: "report",
   },
   {
     id: 4,
-    teacherId: 2,
-    teacherName: "Sita Kumari Sharma",
-    action: "Assignment created",
-    details: "Class 8 · English · Essay Writing",
+    accountantId: 2,
+    accountantName: "Sita Kumari Sharma",
+    action: "Invoice created",
+    details: "Class 8 · Exam Fee · Rs. 1,200",
     timestamp: "Yesterday, 2:10 PM",
-    type: "assignment",
+    type: "invoice",
   },
   {
     id: 5,
-    teacherId: 7,
-    teacherName: "Anita Rai",
+    accountantId: 7,
+    accountantName: "Anita Rai",
     action: "Profile updated",
-    details: "Phone number and address changed",
+    details: "Phone number and email changed",
     timestamp: "Yesterday, 11:05 AM",
     type: "profile",
   },
   {
     id: 6,
-    teacherId: 4,
-    teacherName: "Deepak Adhikari",
-    action: "Diary entry posted",
-    details: "Class 7 · Science · Homework reminder",
+    accountantId: 4,
+    accountantName: "Deepak Adhikari",
+    action: "Reconciliation done",
+    details: "Bank statement matched · November",
     timestamp: "Dec 16, 3:45 PM",
-    type: "diary",
+    type: "reconcile",
   },
   {
     id: 7,
-    teacherId: 6,
-    teacherName: "Priya Shrestha",
+    accountantId: 6,
+    accountantName: "Priya Shrestha",
     action: "Announcement sent",
-    details: "Class 10 · Parent-teacher meeting notice",
+    details: "Fee payment deadline reminder",
     timestamp: "Dec 16, 10:20 AM",
     type: "announcement",
   },
   {
     id: 8,
-    teacherId: 1,
-    teacherName: "Ram Prasad Bhattarai",
-    action: "Attendance marked",
-    details: "Class 10 · Mathematics · Period 3",
+    accountantId: 1,
+    accountantName: "Ram Prasad Bhattarai",
+    action: "Payment collected",
+    details: "Class 10 · Admission Fee · Rs. 8,000",
     timestamp: "Dec 16, 10:00 AM",
-    type: "attendance",
+    type: "payment",
   },
   {
     id: 9,
-    teacherId: 8,
-    teacherName: "Kiran Gurung",
-    action: "Grades submitted",
-    details: "Class 9 · Social Studies · Unit Test",
+    accountantId: 8,
+    accountantName: "Kiran Gurung",
+    action: "Fee waiver applied",
+    details: "Class 5 · Aarav Shrestha · 25% discount",
     timestamp: "Dec 15, 4:15 PM",
-    type: "grade",
+    type: "fee",
   },
   {
     id: 10,
-    teacherId: 2,
-    teacherName: "Sita Kumari Sharma",
-    action: "Leave requested",
-    details: "Personal leave · Dec 20 · Pending",
+    accountantId: 2,
+    accountantName: "Sita Kumari Sharma",
+    action: "Overdue reminder",
+    details: "12 pending fees · Total Rs. 45,000",
     timestamp: "Dec 15, 1:30 PM",
-    type: "leave",
+    type: "report",
   },
 ];
 
@@ -204,28 +205,28 @@ const ACTIVITY_TYPE_CONFIG: Record<
   ActivityItem["type"],
   { icon: typeof UserCheck; bg: string; text: string; border: string; dotColor: string }
 > = {
-  grade: {
-    icon: ClipboardCheck,
+  payment: {
+    icon: DollarSign,
     bg: "bg-emerald-100",
     text: "text-emerald-700",
     border: "border-emerald-200",
     dotColor: "bg-emerald-500",
   },
-  attendance: {
-    icon: CheckCircle2,
+  fee: {
+    icon: FileText,
     bg: "bg-blue-100",
     text: "text-blue-700",
     border: "border-blue-200",
     dotColor: "bg-blue-500",
   },
-  leave: {
-    icon: CalendarOff,
+  report: {
+    icon: ClipboardCheck,
     bg: "bg-amber-100",
     text: "text-amber-700",
     border: "border-amber-200",
     dotColor: "bg-amber-500",
   },
-  assignment: {
+  invoice: {
     icon: FileText,
     bg: "bg-violet-100",
     text: "text-violet-700",
@@ -239,12 +240,12 @@ const ACTIVITY_TYPE_CONFIG: Record<
     border: "border-slate-200",
     dotColor: "bg-slate-500",
   },
-  diary: {
-    icon: BookOpen,
-    bg: "bg-orange-100",
-    text: "text-orange-700",
-    border: "border-orange-200",
-    dotColor: "bg-orange-500",
+  reconcile: {
+    icon: CheckCircle2,
+    bg: "bg-cyan-100",
+    text: "text-cyan-700",
+    border: "border-cyan-200",
+    dotColor: "bg-cyan-500",
   },
   announcement: {
     icon: Bell,
@@ -269,7 +270,7 @@ function formatRelativeTime(timestamp: string): string {
   return timestamp;
 }
 
-export default function TeachersPage() {
+export default function AccountantsPage() {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -279,111 +280,106 @@ export default function TeachersPage() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [pageNum, setPageNum] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [newTeacherName, setNewTeacherName] = useState("");
-  const [newTeacherPhoneNumber, setNewTeacherPhoneNumber] = useState("");
+  const [newAccountantName, setNewAccountantName] = useState("");
+  const [newAccountantPhone, setNewAccountantPhone] = useState("");
   const [showAllActivities, setShowAllActivities] = useState(false);
 
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [deleteDialog, setDeleteDialog] = useState<TeacherResponse | null>(
+  const [deleteDialog, setDeleteDialog] = useState<AccountantResponse | null>(
     null,
   );
 
-  // Fetch teachers
+  // Fetch accountants
   const {
-    data: teachersData,
-    isLoading: teachersLoading,
-    isError: teachersError,
-    refetch: refetchTeachers,
+    data: accountantsData,
+    isLoading: accountantsLoading,
+    isError: accountantsError,
+    refetch: refetchAccountants,
   } = useQuery({
     queryKey: [
-      "teachers",
+      "accountants",
       debouncedSearch,
       selectedDepartment,
       pageNum,
       pageSize,
     ],
     queryFn: async () => {
-      const allTeachers = await getAllTeachers();
-      allTeachers.sort((a, b) => a.teacherId - b.teacherId);
+      const all = await getAllAccountants();
+      all.sort((a, b) => a.accountantId - b.accountantId);
       const normalizedSearch = debouncedSearch.trim().toLowerCase();
-      const filteredTeachers = normalizedSearch
-        ? allTeachers.filter((teacher) =>
-            teacher.teacherName.toLowerCase().includes(normalizedSearch),
+      const filtered = normalizedSearch
+        ? all.filter((a) =>
+            a.accountantName.toLowerCase().includes(normalizedSearch),
           )
-        : allTeachers;
+        : all;
 
       const startIndex = (pageNum - 1) * pageSize;
-      const pagedTeachers = filteredTeachers.slice(
-        startIndex,
-        startIndex + pageSize,
-      );
+      const paged = filtered.slice(startIndex, startIndex + pageSize);
 
-      const page: PageResponse<TeacherResponse> = {
-        content: pagedTeachers,
+      return {
+        content: paged,
         pageNum,
         pageSize,
-        numOfElements: pagedTeachers.length,
-        totalElements: filteredTeachers.length,
+        numOfElements: paged.length,
+        totalElements: filtered.length,
       };
-
-      return page;
     },
   });
 
-  const createTeacherMutation = useMutation({
-    mutationFn: (payload: TeacherCreate) => createTeacher(payload),
+  const createMutation = useMutation({
+    mutationFn: (payload: AccountantCreate) => createAccountant(payload),
     onSuccess: () => {
       setAddDialogOpen(false);
-      setNewTeacherName("");
-      setNewTeacherPhoneNumber("");
-      refetchTeachers();
+      setNewAccountantName("");
+      setNewAccountantPhone("");
+      refetchAccountants();
       toast({
-        title: "Teacher added",
-        description: "New teacher has been added successfully.",
+        title: "Accountant added",
+        description: "New accountant has been added successfully.",
       });
     },
     onError: (error) => {
       toast({
-        title: "Failed to add teacher",
+        title: "Failed to add accountant",
         description: getApiErrorMessage(error, "Please try again."),
         variant: "destructive",
       });
     },
   });
 
-  const deleteTeacherMutation = useMutation({
-    mutationFn: (id: number) => deleteTeacher(id),
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteAccountant(id),
     onSuccess: () => {
       setDeleteDialog(null);
-      refetchTeachers();
+      refetchAccountants();
       toast({
-        title: "Teacher deleted",
-        description: "The teacher has been removed successfully.",
+        title: "Accountant deleted",
+        description: "The accountant has been removed successfully.",
       });
     },
     onError: (error) => {
       toast({
-        title: "Failed to delete teacher",
+        title: "Failed to delete accountant",
         description: getApiErrorMessage(error, "Please try again later."),
         variant: "destructive",
       });
     },
   });
 
-  const teachers = teachersData?.content || [];
-  const totalTeachers = teachersData?.totalElements || 0;
-  const hasContent = teachers.length > 0;
+  const accountants = accountantsData?.content || [];
+  const totalAccountants = accountantsData?.totalElements || 0;
+  const hasContent = accountants.length > 0;
 
   const displayedActivities = showAllActivities
     ? MOCK_ACTIVITIES
     : MOCK_ACTIVITIES.slice(0, 5);
 
   const handleExport = () => {
-    const data = teachers.map((teacher) => ({
-      teacherId: teacher.teacherId,
-      teacherName: teacher.teacherName,
-      teacherPhoneNumber: teacher.teacherPhoneNumber,
+    const data = accountants.map((a) => ({
+      accountantId: a.accountantId,
+      accountantName: a.accountantName,
+      accountantPhoneNumber: a.accountantPhoneNumber,
     }));
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
@@ -392,13 +388,13 @@ export default function TeachersPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `teachers-export-${new Date().toISOString().split("T")[0]}.json`;
+    a.download = `accountants-export-${new Date().toISOString().split("T")[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
 
     toast({
       title: "Exported",
-      description: `${teachers.length} teachers exported successfully.`,
+      description: `${accountants.length} accountants exported successfully.`,
     });
   };
 
@@ -408,10 +404,10 @@ export default function TeachersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight">
-            Teachers
+            Accountants
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
-            Manage faculty, departments, and teaching assignments
+            Manage school accountants and financial records
           </p>
         </div>
         <Button
@@ -419,7 +415,7 @@ export default function TeachersPage() {
           className="gap-2 shadow-sm text-xs sm:text-sm w-full sm:w-auto"
         >
           <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          Add Teacher
+          Add Accountant
         </Button>
       </div>
 
@@ -427,16 +423,16 @@ export default function TeachersPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <h2 className="text-base sm:text-lg font-semibold">
-            All Teachers
+            All Accountants
             <span className="text-xs sm:text-sm font-normal text-muted-foreground ml-2">
-              {totalTeachers} total
+              {totalAccountants} total
             </span>
           </h2>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <DebouncedSearchInput
             value={debouncedSearch}
-            placeholder="Search teachers..."
+            placeholder="Search accountants..."
             onChange={(val) => {
               setDebouncedSearch(val);
               setPageNum(1);
@@ -472,29 +468,29 @@ export default function TeachersPage() {
       </div>
 
       {/* Loading State */}
-      {teachersLoading && (
+      {accountantsLoading && (
         <div className="flex items-center justify-center py-16 sm:py-20">
           <div className="flex flex-col items-center gap-3">
             <RefreshCw className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground animate-spin" />
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Loading teachers...
+              Loading accountants...
             </p>
           </div>
         </div>
       )}
 
       {/* Error State */}
-      {teachersError && !teachersLoading && (
+      {accountantsError && !accountantsLoading && (
         <div className="flex items-center justify-center py-16 sm:py-20">
           <div className="flex flex-col items-center gap-3">
             <AlertCircle className="h-6 w-6 sm:h-8 sm:w-8 text-destructive" />
             <p className="text-xs sm:text-sm text-muted-foreground">
-              Failed to load teachers
+              Failed to load accountants
             </p>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetchTeachers()}
+              onClick={() => refetchAccountants()}
               className="text-xs sm:text-sm"
             >
               <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />{" "}
@@ -505,21 +501,19 @@ export default function TeachersPage() {
       )}
 
       {/* Content or Empty State */}
-      {!teachersLoading && !teachersError && (
+      {!accountantsLoading && !accountantsError && (
         <>
           {hasContent ? (
             viewMode === "grid" ? (
               <div className="grid gap-3 sm:gap-4 grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {teachers.map((teacher, index) => {
-                  const classesTaught =
-                    teacher.assignmentResponse?.classesTaught ?? 0;
-                  const statusConfig =
-                    classesTaught > 0
-                      ? STATUS_CONFIG.ACTIVE
-                      : STATUS_CONFIG.INACTIVE;
+                {accountants.map((accountant, index) => {
+                  const hasTransactions = accountant.editPermission;
+                  const statusConfig = hasTransactions
+                    ? STATUS_CONFIG.ACTIVE
+                    : STATUS_CONFIG.INACTIVE;
                   const avatarColor =
                     AVATAR_COLORS[index % AVATAR_COLORS.length];
-                  const initials = teacher.teacherName
+                  const initials = accountant.accountantName
                     .split(" ")
                     .map((n) => n[0])
                     .join("")
@@ -528,10 +522,10 @@ export default function TeachersPage() {
 
                   return (
                     <div
-                      key={teacher.teacherId}
+                      key={accountant.accountantId}
                       className="rounded-xl border bg-card shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer group"
                       onClick={() =>
-                        router.push(`/admin/teachers/${teacher.teacherId}`)
+                        router.push(`/admin/accountants/${accountant.accountantId}`)
                       }
                     >
                       <div className="p-3 sm:p-5">
@@ -548,10 +542,10 @@ export default function TeachersPage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <h3 className="text-sm font-semibold truncate">
-                              {teacher.teacherName}
+                              {accountant.accountantName}
                             </h3>
                             <p className="text-xs text-muted-foreground truncate mt-0.5">
-                              {teacher.teacherPhoneNumber}
+                              {accountant.accountantPhoneNumber}
                             </p>
                             <Badge
                               className={cn(
@@ -574,18 +568,18 @@ export default function TeachersPage() {
                         <div className="grid grid-cols-2 gap-1.5 sm:gap-2 text-center bg-muted/30 rounded-lg p-2.5 sm:p-3">
                           <div className="flex flex-col items-center justify-center">
                             <p className="text-sm sm:text-base font-bold">
-                              {classesTaught}
+                              {hasTransactions ? "Active" : "—"}
                             </p>
                             <p className="text-[10px] text-muted-foreground mt-0.5">
-                              Classes
+                              Status
                             </p>
                           </div>
                           <div className="flex flex-col items-center justify-center">
                             <p className="text-sm sm:text-base font-bold">
-                              {teacher.assignmentResponse?.subjectsTaught ?? 0}
+                              {accountant.editPermission ? "Edit" : "View"}
                             </p>
                             <p className="text-[10px] text-muted-foreground mt-0.5">
-                              Subjects
+                              Access
                             </p>
                           </div>
                         </div>
@@ -598,7 +592,7 @@ export default function TeachersPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               router.push(
-                                `/admin/teachers/${teacher.teacherId}`,
+                                `/admin/accountants/${accountant.accountantId}`,
                               );
                             }}
                           >
@@ -610,7 +604,7 @@ export default function TeachersPage() {
                             className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive flex-shrink-0"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setDeleteDialog(teacher);
+                              setDeleteDialog(accountant);
                             }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -629,13 +623,10 @@ export default function TeachersPage() {
                     <thead>
                       <tr className="border-b bg-muted/30">
                         <th className="px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Teacher
+                          Accountant
                         </th>
                         <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Phone
-                        </th>
-                        <th className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          Classes & Subjects
                         </th>
                         <th className="px-3 sm:px-5 py-3 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                           Status
@@ -644,23 +635,21 @@ export default function TeachersPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {teachers.map((teacher, index) => {
-                        const classesTaught =
-                          teacher.assignmentResponse?.classesTaught ?? 0;
-                        const statusConfig =
-                          classesTaught > 0
-                            ? STATUS_CONFIG.ACTIVE
-                            : STATUS_CONFIG.INACTIVE;
+                      {accountants.map((accountant, index) => {
+                        const hasTransactions = accountant.editPermission;
+                        const statusConfig = hasTransactions
+                          ? STATUS_CONFIG.ACTIVE
+                          : STATUS_CONFIG.INACTIVE;
                         const avatarColor =
                           AVATAR_COLORS[index % AVATAR_COLORS.length];
 
                         return (
                           <tr
-                            key={teacher.teacherId}
+                            key={accountant.accountantId}
                             className="hover:bg-muted/20 transition-colors cursor-pointer"
                             onClick={() =>
                               router.push(
-                                `/admin/teachers/${teacher.teacherId}`,
+                                `/admin/accountants/${accountant.accountantId}`,
                               )
                             }
                           >
@@ -673,27 +662,22 @@ export default function TeachersPage() {
                                     avatarColor.text,
                                   )}
                                 >
-                                  {teacher.teacherName
+                                  {accountant.accountantName
                                     .charAt(0)
                                     .toUpperCase()}
                                 </div>
                                 <div className="min-w-0">
                                   <p className="text-sm font-medium truncate max-w-[120px] sm:max-w-none">
-                                    {teacher.teacherName}
+                                    {accountant.accountantName}
                                   </p>
                                   <p className="sm:hidden text-[11px] text-muted-foreground">
-                                    {teacher.teacherPhoneNumber}
+                                    {accountant.accountantPhoneNumber}
                                   </p>
                                 </div>
                               </div>
                             </td>
                             <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-sm text-muted-foreground">
-                              {teacher.teacherPhoneNumber}
-                            </td>
-                            <td className="hidden sm:table-cell px-3 sm:px-5 py-3 text-center text-sm font-medium">
-                              {classesTaught} Cls ·{" "}
-                              {teacher.assignmentResponse?.subjectsTaught ?? 0}{" "}
-                              Sub
+                              {accountant.accountantPhoneNumber}
                             </td>
                             <td className="px-3 sm:px-5 py-3 text-center">
                               <Badge
@@ -724,7 +708,7 @@ export default function TeachersPage() {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       router.push(
-                                        `/admin/teachers/${teacher.teacherId}`,
+                                        `/admin/accountants/${accountant.accountantId}`,
                                       );
                                     }}
                                   >
@@ -735,7 +719,7 @@ export default function TeachersPage() {
                                     className="text-destructive"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      setDeleteDialog(teacher);
+                                      setDeleteDialog(accountant);
                                     }}
                                   >
                                     <Trash2 className="mr-2 h-4 w-4" />{" "}
@@ -755,7 +739,7 @@ export default function TeachersPage() {
           ) : (
             <div className="rounded-xl border bg-card py-16 sm:py-20 text-center">
               <GraduationCap className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">No teachers found</p>
+              <p className="text-sm text-muted-foreground">No accountants found</p>
               {(debouncedSearch || selectedDepartment !== "all") && (
                 <Button
                   variant="outline"
@@ -784,7 +768,7 @@ export default function TeachersPage() {
             <div>
               <h2 className="text-base font-semibold">Recent Activity</h2>
               <p className="text-xs text-muted-foreground">
-                Latest actions from your faculty
+                Latest financial actions from your accountants
               </p>
             </div>
           </div>
@@ -802,7 +786,7 @@ export default function TeachersPage() {
             <thead>
               <tr className="border-b bg-muted/30">
                 <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Teacher
+                  Accountant
                 </th>
                 <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Action
@@ -820,7 +804,7 @@ export default function TeachersPage() {
                 const typeConfig = ACTIVITY_TYPE_CONFIG[activity.type];
                 const TypeIcon = typeConfig.icon;
                 const avatarColor =
-                  AVATAR_COLORS[activity.teacherId % AVATAR_COLORS.length];
+                  AVATAR_COLORS[activity.accountantId % AVATAR_COLORS.length];
 
                 return (
                   <tr
@@ -828,7 +812,7 @@ export default function TeachersPage() {
                     className="hover:bg-muted/20 transition-colors cursor-pointer group"
                     onClick={() =>
                       router.push(
-                        `/admin/teachers/${activity.teacherId}`,
+                        `/admin/accountants/${activity.accountantId}`,
                       )
                     }
                   >
@@ -841,10 +825,10 @@ export default function TeachersPage() {
                             avatarColor.text,
                           )}
                         >
-                          {activity.teacherName.charAt(0)}
+                          {activity.accountantName.charAt(0)}
                         </div>
                         <span className="text-sm font-medium">
-                          {activity.teacherName}
+                          {activity.accountantName}
                         </span>
                       </div>
                     </td>
@@ -921,7 +905,7 @@ export default function TeachersPage() {
               const typeConfig = ACTIVITY_TYPE_CONFIG[activity.type];
               const TypeIcon = typeConfig.icon;
               const avatarColor =
-                AVATAR_COLORS[activity.teacherId % AVATAR_COLORS.length];
+                AVATAR_COLORS[activity.accountantId % AVATAR_COLORS.length];
               const isLast =
                 idx === displayedActivities.length - 1;
 
@@ -934,7 +918,7 @@ export default function TeachersPage() {
                   )}
                   onClick={() =>
                     router.push(
-                      `/admin/teachers/${activity.teacherId}`,
+                      `/admin/accountants/${activity.accountantId}`,
                     )
                   }
                 >
@@ -963,10 +947,10 @@ export default function TeachersPage() {
                             avatarColor.text,
                           )}
                         >
-                          {activity.teacherName.charAt(0)}
+                          {activity.accountantName.charAt(0)}
                         </div>
                         <span className="text-xs font-semibold truncate">
-                          {activity.teacherName}
+                          {activity.accountantName}
                         </span>
                       </div>
                       <span className="text-[10px] text-muted-foreground flex-shrink-0 whitespace-nowrap">
@@ -1013,16 +997,16 @@ export default function TeachersPage() {
         )}
       </div>
 
-      {/* Add Teacher Dialog */}
+      {/* Add Accountant Dialog */}
       <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent className="sm:max-w-md w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] sm:w-full p-0 gap-0 mx-auto rounded-2xl">
           <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-3 sm:pb-4">
             <DialogHeader className="space-y-1.5">
               <DialogTitle className="text-lg sm:text-xl font-semibold tracking-tight">
-                Add Teacher
+                Add Accountant
               </DialogTitle>
               <DialogDescription className="text-xs sm:text-sm leading-relaxed">
-                Add a new teacher to the school.
+                Add a new accountant to the school.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -1034,7 +1018,7 @@ export default function TeachersPage() {
               <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-100 flex items-center justify-center">
                 <GraduationCap className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
               </div>
-              <h4 className="text-sm font-semibold">Teacher Information</h4>
+              <h4 className="text-sm font-semibold">Accountant Information</h4>
             </div>
 
             <div className="space-y-2">
@@ -1042,10 +1026,10 @@ export default function TeachersPage() {
                 Full Name <span className="text-destructive">*</span>
               </label>
               <Input
-                placeholder="Enter teacher's full name"
+                placeholder="Enter accountant's full name"
                 className="h-10 sm:h-11"
-                value={newTeacherName}
-                onChange={(event) => setNewTeacherName(event.target.value)}
+                value={newAccountantName}
+                onChange={(event) => setNewAccountantName(event.target.value)}
               />
             </div>
 
@@ -1057,10 +1041,8 @@ export default function TeachersPage() {
                 type="tel"
                 placeholder="Enter phone number"
                 className="h-10 sm:h-11"
-                value={newTeacherPhoneNumber}
-                onChange={(event) =>
-                  setNewTeacherPhoneNumber(event.target.value)
-                }
+                value={newAccountantPhone}
+                onChange={(event) => setNewAccountantPhone(event.target.value)}
               />
             </div>
           </div>
@@ -1077,32 +1059,32 @@ export default function TeachersPage() {
             </Button>
             <Button
               onClick={() => {
-                if (!newTeacherName.trim()) {
+                if (!newAccountantName.trim()) {
                   toast({
                     title: "Missing name",
-                    description: "Teacher name is required.",
+                    description: "Accountant name is required.",
                   });
                   return;
                 }
-                if (!newTeacherPhoneNumber.trim()) {
+                if (!newAccountantPhone.trim()) {
                   toast({
                     title: "Missing phone",
-                    description: "Teacher phone number is required.",
+                    description: "Accountant phone number is required.",
                   });
                   return;
                 }
-                createTeacherMutation.mutate({
-                  teacherName: newTeacherName.trim(),
-                  teacherPhoneNumber: newTeacherPhoneNumber.trim(),
+                createMutation.mutate({
+                  accountantName: newAccountantName.trim(),
+                  accountantPhoneNumber: newAccountantPhone.trim(),
                 });
               }}
-              disabled={createTeacherMutation.isPending}
+              disabled={createMutation.isPending}
               className="gap-2 text-sm font-medium w-full sm:w-auto"
             >
               <Plus className="h-4 w-4" />
-              {createTeacherMutation.isPending
+              {createMutation.isPending
                 ? "Adding..."
-                : "Add Teacher"}
+                : "Add Accountant"}
             </Button>
           </div>
         </DialogContent>
@@ -1111,20 +1093,20 @@ export default function TeachersPage() {
       <DeleteConfirmationDialog
         open={!!deleteDialog}
         onOpenChange={() => setDeleteDialog(null)}
-        title="Delete Teacher?"
+        title="Delete Accountant?"
         description={
           <>
             This will permanently remove{" "}
-            <strong>{deleteDialog?.teacherName}</strong> and all associated
+            <strong>{deleteDialog?.accountantName}</strong> and all associated
             data. This action cannot be undone.
           </>
         }
         onConfirm={() => {
-          if (deleteDialog?.teacherId) {
-            deleteTeacherMutation.mutate(deleteDialog.teacherId);
+          if (deleteDialog?.accountantId) {
+            deleteMutation.mutate(deleteDialog.accountantId);
           }
         }}
-        isPending={deleteTeacherMutation.isPending}
+        isPending={deleteMutation.isPending}
       />
     </div>
   );

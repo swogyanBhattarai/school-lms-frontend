@@ -7,6 +7,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  DollarSign,
   GraduationCap,
   Heart,
   LayoutDashboard,
@@ -26,6 +27,7 @@ const NAV = [
   { href: "/admin/parents", icon: Heart, label: "Parents" },
   { href: "/admin/fees", icon: Receipt, label: "Fees" },
   { href: "/admin/teachers", icon: Users, label: "Teachers" },
+  { href: "/admin/accountants", icon: DollarSign, label: "Accountants" },
   { href: "/admin/subjects", icon: BookOpen, label: "Subjects" },
 ];
 

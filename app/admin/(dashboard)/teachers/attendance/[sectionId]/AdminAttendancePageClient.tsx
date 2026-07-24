@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -95,15 +95,22 @@ interface StudentState {
   status: AttendanceStatus | "UNMARKED";
 }
 
-export default function AdminAttendancePageClient() {
+export default function AdminAttendancePageClient({
+  initialSubjectId,
+  initialTeacherId,
+  initialAttendanceDate,
+}: {
+  initialSubjectId?: string;
+  initialTeacherId?: string;
+  initialAttendanceDate?: string;
+}) {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const sectionId = parseInt(params.sectionId as string);
-  const subjectId = parseInt(searchParams?.get("subjectId") || "0");
-  const teacherId = parseInt(searchParams?.get("teacherId") || "0");
+  const subjectId = parseInt(initialSubjectId || "0");
+  const teacherId = parseInt(initialTeacherId || "0");
 
   const [search, setSearch] = useState("");
   const [studentStates, setStudentStates] = useState<StudentState[]>([]);
@@ -132,7 +139,7 @@ export default function AdminAttendancePageClient() {
     enabled: !!sectionId,
   });
 
-  const attendanceDate = searchParams?.get("attendanceDate") || undefined;
+  const attendanceDate = initialAttendanceDate || undefined;
 
   const { data: attendanceResponse, isSuccess: isAttendanceLoaded } = useQuery({
     queryKey: ["admin-attendance", { sectionId, subjectId, teacherId, attendanceDate }],
@@ -166,8 +173,14 @@ export default function AdminAttendancePageClient() {
 
   // Mass Attendance Mutation
   const attendanceMutation = useMutation({
-    mutationFn: (payload: MassAttendance) =>
-      createMassAttendanceByTeacher(sectionId, subjectId, teacherId, payload),
+    mutationFn: ({
+      payload,
+      dateForSave,
+    }: {
+      payload: MassAttendance;
+      dateForSave: string;
+    }) =>
+      createMassAttendanceByTeacher(sectionId, subjectId, teacherId, payload, dateForSave),
     onSuccess: () => {
       toast({
         title: "Attendance Saved",
@@ -239,8 +252,8 @@ export default function AdminAttendancePageClient() {
   };
 
   const confirmSave = () => {
+    const dateForSave = attendanceDate || new Date().toISOString().split("T")[0];
     const payload: MassAttendance = {
-      attendanceDate: new Date().toISOString().split("T")[0],
       studentAttendances: studentStates
         .filter((s) => s.status !== "UNMARKED")
         .map((s) => ({
@@ -248,7 +261,7 @@ export default function AdminAttendancePageClient() {
           attendanceStatus: s.status as AttendanceStatus,
         })),
     };
-    attendanceMutation.mutate(payload);
+    attendanceMutation.mutate({ payload, dateForSave });
     setShowConfirmDialog(false);
   };
 

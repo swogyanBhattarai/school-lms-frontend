@@ -1,7 +1,7 @@
 // app/teacher/(dashboard)/students/TeacherStudentsPageClient.tsx
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   UserCircle,
   Users,
@@ -102,33 +102,50 @@ const AVATAR_COLORS = [
   { bg: "bg-purple-100", text: "text-purple-600" },
 ];
 
-export default function TeacherStudentPageClient() {
+export default function TeacherStudentPageClient({
+  initialStudentName,
+  initialClassId,
+  initialSectionId,
+  initialSortBy,
+  initialSortDir,
+  initialPageNum,
+  initialPageSize,
+  initialHasSectionAssignment,
+}: {
+  initialStudentName?: string;
+  initialClassId?: string;
+  initialSectionId?: string;
+  initialSortBy?: string;
+  initialSortDir?: string;
+  initialPageNum?: string;
+  initialPageSize?: string;
+  initialHasSectionAssignment?: string;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { toast } = useToast();
 
   // URL params initialization
   const [debouncedSearch, setDebouncedSearch] = useState(
-    searchParams?.get("studentName") || "",
+    initialStudentName || "",
   );
   const [selectedClassId, setSelectedClassId] = useState<string>(
-    searchParams?.get("classId") || "all",
+    initialClassId || "all",
   );
   const [selectedSectionId, setSelectedSectionId] = useState<string>(
-    searchParams?.get("sectionId") || "all",
+    initialSectionId || "all",
   );
   const [sortBy, setSortBy] = useState(
-    searchParams?.get("sortBy") || "studentId",
+    initialSortBy || "studentId",
   );
-  const [sortDir, setSortDir] = useState(searchParams?.get("sortDir") || "ASC");
+  const [sortDir, setSortDir] = useState(initialSortDir || "ASC");
   const [pageNum, setPageNum] = useState(
-    Number(searchParams?.get("pageNum")) || 1,
+    Number(initialPageNum) || 1,
   );
   const [pageSize, setPageSize] = useState(
-    Number(searchParams?.get("pageSize")) || 20,
+    Number(initialPageSize) || 20,
   );
   const [hasSectionAssignment, setHasSectionAssignment] = useState<string>(
-    searchParams?.get("hasSectionAssignment") || "all",
+    initialHasSectionAssignment || "all",
   );
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
@@ -223,11 +240,14 @@ export default function TeacherStudentPageClient() {
   const totalPages = Math.max(1, Math.ceil(totalStudents / pageSize));
   const students = studentsData?.content || [];
 
-  // Active filters count
+  // Active filters count — includes search, class, section, status, sort
   const activeFiltersCount = [
+    debouncedSearch.trim(),
     selectedClassId !== "all" ? selectedClassId : "",
     selectedSectionId !== "all" ? selectedSectionId : "",
     hasSectionAssignment !== "all" ? hasSectionAssignment : "",
+    sortBy !== "studentId" ? sortBy : "",
+    sortDir !== "ASC" ? sortDir : "",
   ].filter(Boolean).length;
 
   // Update URL params
@@ -281,6 +301,8 @@ export default function TeacherStudentPageClient() {
     setSelectedClassId("all");
     setSelectedSectionId("all");
     setHasSectionAssignment("all");
+    setSortBy("studentId");
+    setSortDir("ASC");
     setPageNum(1);
   };
 

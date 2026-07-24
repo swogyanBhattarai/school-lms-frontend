@@ -1,16 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search,
   Plus,
   Pencil,
   Trash2,
   Eye,
-  X,
   BookOpen,
-
   AlertCircle,
   UserCheck,
   RefreshCw,
@@ -26,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
 import { Input } from "@/app/_components/ui/input";
+import DebouncedSearchInput from "@/app/_components/ui/DebouncedSearchInput";
 import { Badge } from "@/app/_components/ui/badge";
 import {
   Select,
@@ -87,7 +85,6 @@ export default function SubjectsPageClient() {
   const queryClient = useQueryClient();
 
   // State
-  const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
@@ -104,14 +101,6 @@ export default function SubjectsPageClient() {
   // Form states
   const [newSubjectName, setNewSubjectName] = useState("");
   const [editSubjectName, setEditSubjectName] = useState("");
-
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Fetch subjects
   const {
@@ -241,23 +230,15 @@ export default function SubjectsPageClient() {
           </h2>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          <div className="relative flex-1 sm:flex-initial sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search subjects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-sm"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-              >
-                <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
-              </button>
-            )}
-          </div>
+          <DebouncedSearchInput
+            value={debouncedSearch}
+            placeholder="Search subjects..."
+            onChange={(val) => {
+              setDebouncedSearch(val);
+            }}
+            className="flex-1 sm:flex-initial sm:w-64"
+            inputClassName="h-9"
+          />
           <div className="flex border rounded-md overflow-hidden">
             <button
               onClick={() => setViewMode("grid")}
@@ -329,7 +310,6 @@ export default function SubjectsPageClient() {
               size="sm"
               className="mt-3 text-xs"
               onClick={() => {
-                setSearch("");
                 setDebouncedSearch("");
               }}
             >

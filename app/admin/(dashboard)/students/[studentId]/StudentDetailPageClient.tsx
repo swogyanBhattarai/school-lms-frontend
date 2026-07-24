@@ -60,7 +60,7 @@ import {
   TabsTrigger,
 } from "@/app/_components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import AnimatedPieChart from "@/app/_components/AnimatedPieChart";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -94,7 +94,6 @@ import type {
   StudentFeeCreate,
   StudentUpdate,
   ParentCreate,
-  ParentUpdate,
   FeeStatus,
   FeeTypes,
   PaymentType,
@@ -102,7 +101,6 @@ import type {
 } from "@/types/lms";
 import {
   addParentToStudent,
-  updateParentOfStudent,
   removeParentFromStudent,
 } from "@/lib/api/parent";
 import { findAllFiltered } from "@/lib/api/diary";
@@ -111,7 +109,6 @@ import { MonthYearNavigator } from "@/app/_components/YearMonthNavigator";
 import {
   convertADToBS,
   getTodayADString,
-  formatBSDate,
   getTodayBS,
   getBSMonthDays,
   convertBSToAD,
@@ -356,15 +353,17 @@ function PaymentTypeBadge({ type }: { type: PaymentType }) {
   );
 }
 
-export default function StudentDetailPageClient() {
+export default function StudentDetailPageClient({
+  initialTab,
+}: {
+  initialTab?: string;
+}) {
   const router = useRouter();
   const params = useParams();
-  const searchParams = useSearchParams();
   const studentId = Number(params.studentId);
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState<TabType>(() => {
-    const tabParam = searchParams?.get("tab");
     const validTabs: TabType[] = [
       "overview",
       "parents",
@@ -373,8 +372,8 @@ export default function StudentDetailPageClient() {
       "fees",
       "documents",
     ];
-    return tabParam && validTabs.includes(tabParam as TabType)
-      ? (tabParam as TabType)
+    return initialTab && validTabs.includes(initialTab as TabType)
+      ? (initialTab as TabType)
       : "overview";
   });
 
@@ -388,9 +387,6 @@ export default function StudentDetailPageClient() {
     useState<string>(getTodayADString());
 
   // Parent management state
-  const [editingParentIndex, setEditingParentIndex] = useState<number | null>(
-    null,
-  );
   const [isAddingParent, setIsAddingParent] = useState(false);
   const [newParent, setNewParent] = useState<ParentInfo>({
     parentName: "",
@@ -889,34 +885,9 @@ export default function StudentDetailPageClient() {
     },
   });
 
-  const { mutate: updateParent } = useMutation({
-    mutationFn: ({
-      parentId,
-      data,
-    }: {
-      parentId: number;
-      data: ParentUpdate;
-    }) => updateParentOfStudent(studentId, parentId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["student", studentId] });
-      setEditingParentIndex(null);
-      toast({
-        title: "Parent updated",
-        description: "Parent information has been updated.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Failed to update parent",
-        description: getApiErrorMessage(error, "Please try again."),
-        variant: "destructive",
-      });
-    },
-  });
-
   const { mutate: removeParent } = useMutation({
     mutationFn: (parentId: number) =>
-      removeParentFromStudent(studentId, parentId),
+      removeParentFromStudent(parentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["student", studentId] });
       toast({
@@ -974,11 +945,6 @@ export default function StudentDetailPageClient() {
     });
   };
 
-  const formatDateBS = (adDate: string) => {
-    const bs = convertADToBS(new Date(adDate));
-    return `${bs.year} ${bs.month + 1} ${bs.day}`;
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
       style: "currency",
@@ -989,24 +955,6 @@ export default function StudentDetailPageClient() {
   };
 
   // Parent management functions
-  const handleEditParent = (index: number) => {
-    setEditingParentIndex(index);
-    setIsAddingParent(false);
-  };
-
-  const handleSaveParent = (index: number) => {
-    const parent = editedParents[index];
-    if (parent.parentId) {
-      updateParent({
-        parentId: parent.parentId,
-        data: {
-          parentName: parent.parentName,
-          parentPhoneNumber: parent.parentNumber,
-        },
-      });
-    }
-  };
-
   const handleAddParent = () => {
     if (newParent.parentName && newParent.parentNumber) {
       addParent({
@@ -1672,7 +1620,7 @@ export default function StudentDetailPageClient() {
           <TabsContent value="parents" className="space-y-4">
             <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden">
               <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 bg-slate-50/50">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h3 className="text-base sm:text-lg font-bold text-slate-900">
                       Parent / Guardian Management
@@ -1684,9 +1632,8 @@ export default function StudentDetailPageClient() {
                   <Button
                     onClick={() => {
                       setIsAddingParent(true);
-                      setEditingParentIndex(null);
                     }}
-                    className="gap-2 rounded-xl text-sm"
+                    className="gap-2 rounded-xl text-sm w-full sm:w-auto"
                     disabled={isAddingParent}
                   >
                     <Plus className="h-4 w-4" />
@@ -1697,8 +1644,8 @@ export default function StudentDetailPageClient() {
 
               <div className="p-4 sm:p-6">
                 {isAddingParent && (
-                  <div className="mb-4 sm:mb-6 p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-violet-50 border-2 border-violet-200 animate-in slide-in-from-top-2">
-                    <h4 className="font-bold text-violet-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
+                  <div className="mb-4 sm:mb-6 p-4 sm:p-5 rounded-xl sm:rounded-2xl bg-blue-50 border-2 border-blue-200 animate-in slide-in-from-top-2">
+                    <h4 className="font-bold text-blue-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
                       <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
                       New Parent Details
                     </h4>
@@ -1743,7 +1690,7 @@ export default function StudentDetailPageClient() {
                     <div className="flex gap-2">
                       <Button
                         onClick={handleAddParent}
-                        className="flex-1 sm:flex-none rounded-xl bg-violet-600 hover:bg-violet-700 text-sm"
+                        className="flex-1 sm:flex-none rounded-xl bg-blue-600 hover:bg-blue-700 text-sm"
                       >
                         <Save className="h-4 w-4 mr-2" />
                         Save Parent
@@ -1784,78 +1731,16 @@ export default function StudentDetailPageClient() {
                         key={index}
                         className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white overflow-hidden transition-all hover:border-slate-300"
                       >
-                        {editingParentIndex === index ? (
-                          <div className="p-4 sm:p-5">
-                            <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-4 mb-4">
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Name</Label>
-                                <div className="relative">
-                                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                  <Input
-                                    type="text"
-                                    value={parent.parentName}
-                                    onChange={(e) => {
-                                      const updated = [...editedParents];
-                                      updated[index] = {
-                                        ...updated[index],
-                                        parentName: e.target.value,
-                                      };
-                                      setEditedParents(updated);
-                                    }}
-                                    className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg"
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-xs">Phone</Label>
-                                <div className="relative">
-                                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                  <Input
-                                    type="text"
-                                    value={parent.parentNumber}
-                                    onChange={(e) => {
-                                      const updated = [...editedParents];
-                                      updated[index] = {
-                                        ...updated[index],
-                                        parentNumber: e.target.value,
-                                      };
-                                      setEditedParents(updated);
-                                    }}
-                                    className="pl-10 h-10 text-sm bg-white border-slate-200 rounded-lg"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleSaveParent(index)}
-                                className="flex-1 sm:flex-none rounded-xl text-sm"
-                              >
-                                <Save className="h-4 w-4 mr-2" />
-                                Save
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setEditingParentIndex(null)}
-                                className="flex-1 sm:flex-none rounded-xl text-sm"
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-3 p-3 sm:p-4">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
-                              <User className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
+                        <div className="flex items-center gap-3 p-3 sm:p-4">
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                              <User className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h4 className="text-sm sm:text-base font-bold text-slate-900 truncate">
                                   {parent.parentName}
                                 </h4>
-                                <Badge className="bg-violet-50 text-violet-700 border-violet-200 text-xs shrink-0">
+                                <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-xs shrink-0">
                                   {parent.relation || "Guardian"}
                                 </Badge>
                               </div>
@@ -1880,10 +1765,14 @@ export default function StudentDetailPageClient() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleEditParent(index)}
+                                onClick={() =>
+                                  router.push(
+                                    `/admin/parents/${parent.parentId}`,
+                                  )
+                                }
                                 className="h-9 w-9 rounded-lg hover:bg-slate-100"
                               >
-                                <Pencil className="h-4 w-4 text-slate-400" />
+                                <Eye className="h-4 w-4 text-slate-400" />
                               </Button>
                               <Button
                                 variant="ghost"
@@ -1899,8 +1788,7 @@ export default function StudentDetailPageClient() {
                                 <Trash2 className="h-4 w-4 text-red-400" />
                               </Button>
                             </div>
-                          </div>
-                        )}
+                        </div>
                       </div>
                     ))
                   )}
@@ -1938,11 +1826,11 @@ export default function StudentDetailPageClient() {
                     {classAssignments.map((assignment) => (
                       <div
                         key={assignment.classAssignmentId}
-                        className="p-3 sm:p-4 rounded-xl border border-slate-200/80 bg-white hover:border-violet-200 hover:shadow-md transition-all group"
+                        className="p-3 sm:p-4 rounded-xl border border-slate-200/80 bg-white hover:border-blue-200 hover:shadow-md transition-all group"
                       >
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                            <BookOpen className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <h4 className="font-bold text-slate-900 text-sm sm:text-base truncate">
@@ -1983,7 +1871,7 @@ export default function StudentDetailPageClient() {
                                 `/admin/sections/${sectionId}#assignments`,
                               )
                             }
-                            className="text-[11px] sm:text-xs rounded-lg h-8 sm:h-9 px-3 text-violet-600 hover:text-violet-700 hover:bg-violet-50 font-semibold"
+                            className="text-[11px] sm:text-xs rounded-lg h-8 sm:h-9 px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-semibold"
                           >
                             <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1" />
                             View
@@ -2009,8 +1897,8 @@ export default function StudentDetailPageClient() {
               <div className="p-4 sm:p-6">
                 {diaryEntries.length === 0 ? (
                   <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
-                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-violet-100 mx-auto flex items-center justify-center mb-3">
-                      <BookMarked className="h-6 w-6 sm:h-7 sm:w-7 text-violet-600" />
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-blue-100 mx-auto flex items-center justify-center mb-3">
+                      <BookMarked className="h-6 w-6 sm:h-7 sm:w-7 text-blue-600" />
                     </div>
                     <p className="text-sm font-medium text-muted-foreground">
                       No diary entries
@@ -2024,19 +1912,19 @@ export default function StudentDetailPageClient() {
                     {diaryEntries.map((entry) => (
                       <div
                         key={entry.diaryId}
-                        className="rounded-xl border border-slate-200/80 bg-white hover:border-violet-200 hover:shadow-md transition-all group flex flex-col h-full"
+                        className="rounded-xl border border-slate-200/80 bg-white hover:border-blue-200 hover:shadow-md transition-all group flex flex-col h-full"
                       >
                         <div className="p-4 sm:p-5 flex flex-col flex-1">
                           <div className="flex items-start gap-3 sm:gap-4 mb-3">
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                              <BookMarked className="h-5 w-5 sm:h-6 sm:w-6 text-violet-600" />
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                              <BookMarked className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" />
                             </div>
                             <div className="min-w-0 flex-1">
                               <h4 className="text-sm sm:text-base font-bold text-slate-800 leading-tight mb-1.5">
                                 {entry.title}
                               </h4>
                               <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                                <Badge className="text-[10px] sm:text-xs bg-violet-50 text-violet-700 border-violet-200 font-semibold px-2 py-0.5">
+                                <Badge className="text-[10px] sm:text-xs bg-blue-50 text-blue-700 border-blue-200 font-semibold px-2 py-0.5">
                                   {entry.subjectName}
                                 </Badge>
                                 <span className="text-xs sm:text-sm text-slate-500 font-medium flex items-center gap-1">
@@ -2055,8 +1943,8 @@ export default function StudentDetailPageClient() {
 
                           <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-100">
                             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
-                                <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-violet-600" />
+                              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                                <User className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
                               </div>
                               <div className="min-w-0">
                                 <p className="text-[10px] sm:text-xs text-slate-400 font-medium">

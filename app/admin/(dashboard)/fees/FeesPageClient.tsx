@@ -3,7 +3,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search,
   ChevronRight,
   Plus,
   TrendingUp,
@@ -13,7 +12,6 @@ import {
   DollarSign,
   Users,
   GraduationCap,
-  X,
   Download,
   Loader2,
   ArrowRight,
@@ -25,21 +23,14 @@ import {
   Calendar,
   Receipt,
   CreditCard,
-  ChevronUp,
   Info,
   ChevronLeft,
-  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/app/_components/ui/button";
-import { Input } from "@/app/_components/ui/input";
 import ClearFiltersButton from "@/app/_components/ui/ClearFiltersButton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/app/_components/ui/select";
+import DebouncedSearchInput from "@/app/_components/ui/DebouncedSearchInput";
+import FilterDropdown from "@/app/_components/ui/FilterDropdown";
+import MobileFilterBar from "@/app/_components/ui/MobileFilterBar";
 import { Badge } from "@/app/_components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -1394,7 +1385,6 @@ export default function FeesOverviewPageClient() {
   const [selectedSectionId, setSelectedSectionId] = useState<string>("all");
   const [selectedFeeStatus, setSelectedFeeStatus] = useState<string>("all");
   const [expandedClassId, setExpandedClassId] = useState<number | null>(null);
-  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const DESKTOP_OVERDUE_INITIAL = 4;
 const DESKTOP_OVERDUE_INCREMENT = 8; // 2 rows × 4 columns
@@ -1446,6 +1436,13 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
     setSelectedSectionId("all");
   };
 
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setSelectedClassId("all");
+    setSelectedSectionId("all");
+    setSelectedFeeStatus("all");
+  };
+
   const filteredClasses = useMemo(() => {
     if (!searchQuery.trim()) return classCollection;
     return classCollection.filter(
@@ -1475,56 +1472,18 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
       ? Math.round((stats!.overdueStudents / totalStudentsForPct) * 100)
       : 0;
   const activeFiltersCount = [
-    selectedClassId !== "all" ? 1 : 0,
-    selectedFeeStatus !== "all" ? 1 : 0,
-  ].reduce((a, b) => a + b, 0);
+    searchQuery.trim(),
+    selectedClassId !== "all" ? selectedClassId : "",
+    selectedSectionId !== "all" ? selectedSectionId : "",
+    selectedFeeStatus !== "all" ? selectedFeeStatus : "",
+  ].filter(Boolean).length;
 
   const statCards = useMemo(
     () => getStatCards(stats, selectedFeeStatus),
     [stats, selectedFeeStatus],
   );
 
-  // Filter chips for mobile
-  const activeFilters = useMemo(() => {
-    const filters: { label: string; onClear: () => void }[] = [];
 
-    if (selectedClassId !== "all") {
-      const cls = classes.find(
-        (c) => String(c.schoolClassId) === selectedClassId,
-      );
-      filters.push({
-        label: cls ? `Grade ${cls.grade}` : "Class",
-        onClear: () => setSelectedClassId("all"),
-      });
-    }
-
-    if (selectedSectionId !== "all") {
-      const sec = sections.find(
-        (s) => String(s.sectionId) === selectedSectionId,
-      );
-      filters.push({
-        label: sec ? `Section ${sec.sectionName}` : "Section",
-        onClear: () => setSelectedSectionId("all"),
-      });
-    }
-
-    if (selectedFeeStatus !== "all") {
-      filters.push({
-        label:
-          selectedFeeStatus.charAt(0) +
-          selectedFeeStatus.slice(1).toLowerCase(),
-        onClear: () => setSelectedFeeStatus("all"),
-      });
-    }
-
-    return filters;
-  }, [
-    selectedClassId,
-    selectedSectionId,
-    selectedFeeStatus,
-    classes,
-    sections,
-  ]);
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-[1600px] mx-auto">
@@ -1675,228 +1634,100 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
 
       {/* Filters - Mobile Collapsible / Desktop Row */}
       <div>
-        {/* Mobile: Collapsible Filter Toggle */}
-        <div className="sm:hidden mb-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowMobileFilters(!showMobileFilters)}
-            className="w-full justify-between rounded-xl h-10 text-sm"
-          >
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-slate-500" />
-              <span>Filters & Search</span>
-              {activeFiltersCount > 0 && (
-                <Badge className="bg-slate-800 text-white text-[10px] h-5 w-5 rounded-full flex items-center justify-center p-0">
-                  {activeFiltersCount}
-                </Badge>
-              )}
-            </div>
-            {showMobileFilters ? (
-              <ChevronUp className="h-4 w-4 text-slate-500" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-slate-500" />
-            )}
-          </Button>
-        </div>
+        {/* Mobile filter bar */}
+        <MobileFilterBar
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Search class..."
+          gradeValue={selectedClassId}
+          onGradeChange={handleClassChange}
+          gradeOptions={[
+            { value: "all", label: "All Classes" },
+            ...classes.map((c) => ({
+              value: String(c.schoolClassId),
+              label: `Grade ${c.grade}`,
+            })),
+          ]}
+          sectionValue={selectedSectionId}
+          onSectionChange={setSelectedSectionId}
+          sectionOptions={[
+            { value: "all", label: "All Sections" },
+            ...sections.map((s) => ({
+              value: String(s.sectionId),
+              label: `Section ${s.sectionName}`,
+            })),
+          ]}
+          sectionDisabled={selectedClassId === "all"}
+          statusValue={selectedFeeStatus}
+          onStatusChange={setSelectedFeeStatus}
+          statusIcon={Filter}
+          statusOptions={[
+            { value: "all", label: "All Statuses" },
+            { value: "PAID", label: "Paid" },
+            { value: "UNPAID", label: "Unpaid" },
+            { value: "PARTIAL", label: "Partial" },
+            { value: "OVERDUE", label: "Overdue" },
+          ]}
+          activeFiltersCount={activeFiltersCount}
+          onClearFilters={handleClearFilters}
+        />
 
-        {/* Filter Content */}
-        <div
-          className={cn(
-            "space-y-3",
-            showMobileFilters ? "block" : "hidden sm:block",
-          )}
-        >
-          {/* Mobile: Month & Search in vertical stack */}
-          <div className="sm:hidden space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search class..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-10 rounded-xl border-slate-200 bg-white text-sm w-full"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                >
-                  <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                </button>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Select value={selectedClassId} onValueChange={handleClassChange}>
-                <SelectTrigger className="h-10 rounded-xl text-sm bg-white">
-                  <div className="flex items-center gap-2">
-                    <GraduationCap className="h-4 w-4 text-slate-400" />
-                    <SelectValue placeholder="All Classes" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Classes</SelectItem>
-                  {classes.map((cls) => (
-                    <SelectItem
-                      key={cls.schoolClassId}
-                      value={String(cls.schoolClassId)}
-                    >
-                      Grade {cls.grade}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={selectedSectionId}
-                onValueChange={setSelectedSectionId}
-                disabled={selectedClassId === "all"}
-              >
-                <SelectTrigger className="h-10 rounded-xl text-sm bg-white">
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-slate-400" />
-                    <SelectValue placeholder="All Sections" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Sections</SelectItem>
-                  {sections.map((sec) => (
-                    <SelectItem
-                      key={sec.sectionId}
-                      value={String(sec.sectionId)}
-                    >
-                      Section {sec.sectionName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Select
-              value={selectedFeeStatus}
-              onValueChange={setSelectedFeeStatus}
-            >
-              <SelectTrigger className="h-10 rounded-xl text-sm bg-white w-full">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-slate-400" />
-                  <SelectValue placeholder="All Statuses" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="PAID">Paid</SelectItem>
-                <SelectItem value="UNPAID">Unpaid</SelectItem>
-                <SelectItem value="PARTIAL">Partial</SelectItem>
-                <SelectItem value="OVERDUE">Overdue</SelectItem>
-              </SelectContent>
-            </Select>
-            {activeFiltersCount > 0 && (
-              <div className="pt-3 border-t border-slate-200">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedClassId("all");
-                    setSelectedSectionId("all");
-                    setSelectedFeeStatus("all");
-                  }}
-                  className="w-full h-9 rounded-xl text-xs border-slate-300"
-                >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-                  Clear Filters
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Desktop: Horizontal filters row */}
-          <div className="hidden sm:flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Search class..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-10 rounded-xl border-slate-200 bg-white text-sm w-full"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                >
-                  <X className="h-4 w-4 text-slate-400 hover:text-slate-600" />
-                </button>
-              )}
-            </div>
-
-            <Select value={selectedClassId} onValueChange={handleClassChange}>
-              <SelectTrigger className="h-10 rounded-xl text-sm w-[140px] bg-white">
-                <div className="flex items-center gap-2">
-                  <GraduationCap className="h-4 w-4 text-slate-400" />
-                  <SelectValue placeholder="All Classes" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Classes</SelectItem>
-                {classes.map((cls) => (
-                  <SelectItem
-                    key={cls.schoolClassId}
-                    value={String(cls.schoolClassId)}
-                  >
-                    Grade {cls.grade}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={selectedSectionId}
-              onValueChange={setSelectedSectionId}
-              disabled={selectedClassId === "all"}
-            >
-              <SelectTrigger className="h-10 rounded-xl text-sm w-[140px] bg-white">
-                <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-slate-400" />
-                  <SelectValue placeholder="All Sections" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sections</SelectItem>
-                {sections.map((sec) => (
-                  <SelectItem key={sec.sectionId} value={String(sec.sectionId)}>
-                    Section {sec.sectionName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={selectedFeeStatus}
-              onValueChange={setSelectedFeeStatus}
-            >
-              <SelectTrigger className="h-10 rounded-xl text-sm w-[140px] bg-white">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-slate-400" />
-                  <SelectValue placeholder="All Statuses" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="PAID">Paid</SelectItem>
-                <SelectItem value="UNPAID">Unpaid</SelectItem>
-                <SelectItem value="PARTIAL">Partial</SelectItem>
-                <SelectItem value="OVERDUE">Overdue</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <ClearFiltersButton
-              activeFiltersCount={activeFiltersCount}
-              onClick={() => {
-                setSelectedClassId("all");
-                setSelectedSectionId("all");
-                setSelectedFeeStatus("all");
-              }}
-              className="h-10 px-3 text-xs"
-            />
-          </div>
+        {/* Desktop: Horizontal filters row */}
+        <div className="hidden sm:flex flex-wrap items-center gap-3">
+          <DebouncedSearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search class..."
+            className="flex-1 min-w-[200px]"
+            inputClassName="h-10"
+          />
+          <FilterDropdown
+            icon={GraduationCap}
+            placeholder="All Classes"
+            value={selectedClassId}
+            onValueChange={handleClassChange}
+            options={[
+              { value: "all", label: "All Classes" },
+              ...classes.map((c) => ({
+                value: String(c.schoolClassId),
+                label: `Grade ${c.grade}`,
+              })),
+            ]}
+            className="h-10 w-[140px]"
+          />
+          <FilterDropdown
+            icon={Layers}
+            placeholder="All Sections"
+            value={selectedSectionId}
+            onValueChange={setSelectedSectionId}
+            options={[
+              { value: "all", label: "All Sections" },
+              ...sections.map((s) => ({
+                value: String(s.sectionId),
+                label: `Section ${s.sectionName}`,
+              })),
+            ]}
+            disabled={selectedClassId === "all"}
+            className="h-10 w-[140px]"
+          />
+          <FilterDropdown
+            icon={Filter}
+            placeholder="All Statuses"
+            value={selectedFeeStatus}
+            onValueChange={setSelectedFeeStatus}
+            options={[
+              { value: "all", label: "All Statuses" },
+              { value: "PAID", label: "Paid" },
+              { value: "UNPAID", label: "Unpaid" },
+              { value: "PARTIAL", label: "Partial" },
+              { value: "OVERDUE", label: "Overdue" },
+            ]}
+            className="h-10 w-[140px]"
+          />
+          <ClearFiltersButton
+            activeFiltersCount={activeFiltersCount}
+            onClick={handleClearFilters}
+          />
         </div>
       </div>
 
@@ -2001,12 +1832,12 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
 
                             {/* Mobile: Show collected / total + overdue */}
                             <div className="sm:hidden flex items-center justify-between mt-1.5">
-                              <span className="text-[11px] font-medium text-slate-700">
+                              <span className="text-[10px] font-medium text-slate-700">
                                 {formatCurrency(cls.totalCollected)} /{" "}
                                 {formatCurrency(cls.totalExpected)}
                               </span>
                               {cls.overdueAmount > 0 && (
-                                <span className="text-[10px] font-medium text-red-500">
+                                <span className="text-[9px] font-medium text-red-500">
                                   {formatCurrency(cls.overdueAmount)} overdue
                                 </span>
                               )}
@@ -2089,13 +1920,13 @@ const [desktopOverdueVisibleCount, setDesktopOverdueVisibleCount] =
                                       </Badge>
                                     </div>
                                     <div className="flex items-center justify-between mt-2 ml-9">
-                                      <span className="text-[11px] font-semibold text-slate-700">
+                                      <span className="text-[10px] font-semibold text-slate-700">
                                         {formatCurrency(section.totalCollected)}{" "}
                                         /{" "}
                                         {formatCurrency(section.totalExpected)}
                                       </span>
                                       {section.overdueAmount > 0 && (
-                                        <span className="text-[10px] font-medium text-red-500">
+                                        <span className="text-[9px] font-medium text-red-500">
                                           {formatCurrency(
                                             section.overdueAmount,
                                           )}{" "}

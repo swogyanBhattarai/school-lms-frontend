@@ -9,6 +9,7 @@ type JwtPayload = {
   exp?: number;
   roles?: string[];
   schoolId?: number;
+  slug?: string;
   sub?: string;
 };
 
@@ -103,7 +104,27 @@ function extractSubdomain(hostname: string): string | null {
 // ── Exact public path match (NOT startsWith) ──
 function isPublicPath(pathname: string): boolean {
   const normalized = pathname.replace(/\/+$/, "") || "/";
-  return normalized === "/login" || normalized === "/not-found";
+  return normalized === "/login"
+    || normalized === "/not-found"
+    || normalized === "/parent/login";
+}
+
+// ── Detect localhost development ──
+function isLocalhost(hostname: string): boolean {
+  return hostname === "localhost" || hostname.endsWith(".localhost");
+}
+
+// ── Build a cross-subdomain URL that works on both localhost and production ──
+// On localhost:  subdomain.localhost:PORT/path
+// On production: subdomain.KNOWN_DOMAIN/path
+function subdomainUrl(subdomain: string, hostname: string, baseUrl: string | URL, pathname: string): URL {
+  const url = new URL(pathname, baseUrl);
+  if (isLocalhost(hostname)) {
+    url.host = `${subdomain}.localhost`;
+  } else if (KNOWN_DOMAIN) {
+    url.host = `${subdomain}.${KNOWN_DOMAIN}`;
+  }
+  return url;
 }
 
 // ── Middleware ──
@@ -121,30 +142,48 @@ export async function middleware(request: NextRequest) {
   }
 
   let schoolSlug: string | null = null;
+  let isParentPortal = false;
+  const isLocalhostDev = isLocalhost(hostname);
 
-  if (hostname === "localhost") {
+  if (isLocalhostDev && hostname === "localhost") {
     console.log("[proxy] bare localhost, skipping subdomain check");
   } else {
     schoolSlug = extractSubdomain(hostname);
     console.log(`[proxy] extracted slug: ${schoolSlug}`);
-    if (!schoolSlug || schoolSlug === "www") {
-      console.log("[proxy] no valid slug, redirecting to /not-found");
-      return NextResponse.redirect(new URL("/not-found", request.url));
-    }
 
-    const validSlugs = await getValidSlugs();
-    console.log(`[proxy] validSlugs=${JSON.stringify(validSlugs)}`);
+    // ── Parent portal subdomain — skip tenant slug validation ──
+    isParentPortal = schoolSlug === "parents";
 
-    if (validSlugs.length > 0 && !validSlugs.includes(schoolSlug)) {
-      console.log(`[proxy] slug "${schoolSlug}" not in validSlugs, redirecting`);
-      return NextResponse.redirect(new URL("/not-found", request.url));
+    if (isParentPortal) {
+      console.log("[proxy] parent portal detected");
+    } else {
+      if (!schoolSlug || schoolSlug === "www") {
+        console.log("[proxy] no valid slug, redirecting to /not-found");
+        return NextResponse.redirect(new URL("/not-found", request.url));
+      }
+
+      const validSlugs = await getValidSlugs();
+      console.log(`[proxy] validSlugs=${JSON.stringify(validSlugs)}`);
+
+      if (validSlugs.length > 0 && !validSlugs.includes(schoolSlug)) {
+        console.log(`[proxy] slug "${schoolSlug}" not in validSlugs, redirecting`);
+        return NextResponse.redirect(new URL("/not-found", request.url));
+      }
     }
   }
 
   if (isPublicPath(pathname)) {
+    // On parent portal, redirect the regular /login to /parent/login
+    // so the schoolSlug cookie isn't accidentally sent as a tenant slug.
+    if (isParentPortal && pathname === "/login") {
+      console.log("[proxy] redirecting /login to /parent/login on parent portal");
+      return NextResponse.redirect(new URL("/parent/login", request.url));
+    }
+
     console.log("[proxy] public path, passing through");
     const res = NextResponse.next();
-    if (schoolSlug) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
+    // Don't set schoolSlug cookie on the parent portal — "parents" is not a tenant slug
+    if (schoolSlug && !isParentPortal) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
     return res;
   }
 
@@ -152,8 +191,8 @@ export async function middleware(request: NextRequest) {
   console.log(`[proxy] token present=${!!token}, expired=${token ? isTokenExpired(token) : "n/a"}`);
   if (!token || isTokenExpired(token)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    console.log("[proxy] no/expired token, redirecting to /login");
+    url.pathname = isParentPortal ? "/parent/login" : "/login";
+    console.log(`[proxy] no/expired token, redirecting to ${url.pathname}`);
     return NextResponse.redirect(url);
   }
 
@@ -163,19 +202,27 @@ export async function middleware(request: NextRequest) {
 
   const isAdmin = roles.includes("ROLE_ADMIN") || roles.includes("ADMIN");
   const isTeacher = roles.includes("ROLE_TEACHER") || roles.includes("TEACHER");
+  const isParent = roles.includes("ROLE_PARENT") || roles.includes("PARENT");
 
+  // ── Root path redirect ──
   if (pathname === "/") {
     const url = request.nextUrl.clone();
-    if (isAdmin) {
+    if (isParentPortal) {
+      url.pathname = isParent ? "/parent" : "/parent/login";
+    } else if (isAdmin) {
       url.pathname = "/admin";
     } else if (isTeacher) {
       url.pathname = "/teacher";
+    } else if (isParent) {
+      // Parent on bare localhost without tenant context — go to /parent directly
+      url.pathname = "/parent";
     } else {
       url.pathname = "/student";
     }
     return NextResponse.redirect(url);
   }
 
+  // ── Admin/teacher route guards (existing) ──
   if (pathname.startsWith("/admin") && !isAdmin) {
     return NextResponse.redirect(new URL("/", request.url));
   }
@@ -184,9 +231,50 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  // ── Parent portal guard: NON-parent on parent portal → redirect to their school ──
+  if (isParentPortal && !isParent && pathname !== "/parent/login") {
+    const slug = payload?.slug;
+    if (slug && isAdmin) {
+      const dest = subdomainUrl(slug, hostname, request.url, "/admin");
+      console.log(`[proxy] non-parent on parent portal, redirecting to ${dest.host}/admin`);
+      return NextResponse.redirect(dest);
+    }
+    if (slug && isTeacher) {
+      const dest = subdomainUrl(slug, hostname, request.url, "/teacher");
+      console.log(`[proxy] non-parent on parent portal, redirecting to ${dest.host}/teacher`);
+      return NextResponse.redirect(dest);
+    }
+    // Fallback — redirect to parent login with error
+    console.log("[proxy] non-parent on parent portal, redirecting to /parent/login?error=unauthorized");
+    return NextResponse.redirect(new URL("/parent/login?error=unauthorized", request.url));
+  }
+
+  // ── School subdomain guard: PARENT on school subdomain → redirect to parent portal ──
+  if (isParent && !isParentPortal) {
+    // On bare localhost without a tenant subdomain, there's no parent portal to redirect to
+    if (isLocalhostDev && !schoolSlug) {
+      console.log("[proxy] parent on bare localhost, allowing pass-through");
+    } else {
+      const dest = subdomainUrl("parents", hostname, request.url, pathname);
+      console.log(`[proxy] parent on school subdomain, redirecting to ${dest.host}${pathname}`);
+      return NextResponse.redirect(dest);
+    }
+  }
+
+  // ── /parent/* guard: require PARENT role everywhere ──
+  if (pathname.startsWith("/parent") && !isParent) {
+    console.log("[proxy] non-parent accessing /parent/*, redirecting to own dashboard");
+    const url = request.nextUrl.clone();
+    if (isAdmin) url.pathname = "/admin";
+    else if (isTeacher) url.pathname = "/teacher";
+    else url.pathname = "/";
+    return NextResponse.redirect(url);
+  }
+
   // ── Final response with cookie ──
   const res = NextResponse.next();
-  if (schoolSlug) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
+  // Don't set schoolSlug on parent portal — "parents" is not a valid tenant slug
+  if (schoolSlug && !isParentPortal) res.cookies.set("schoolSlug", schoolSlug, { path: "/", httpOnly: false });
   return res;
 }
 

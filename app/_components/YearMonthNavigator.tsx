@@ -28,7 +28,7 @@ export function MonthYearNavigator({
   const today = getTodayBS();
   const [currentYear, setCurrentYear] = useState(value?.year || today.year);
   const [currentMonth, setCurrentMonth] = useState(value?.month || today.month);
-  const [showAD, setShowAD] = useState(false);
+  const [showAD, setShowAD] = useState(true);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
   const [showYearSelector, setShowYearSelector] = useState(false);
 

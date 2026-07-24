@@ -226,6 +226,7 @@ export default function TeacherDetailPageClient() {
   // Active filters count — date is active when not today
   const isDateActive = selectedDate !== getTodayADString();
   const activeFiltersCount = [
+    search.trim(),
     subjectFilter !== "all" ? subjectFilter : "",
     gradeFilter !== "all" ? gradeFilter : "",
     sortBy !== "grade" ? sortBy : "",

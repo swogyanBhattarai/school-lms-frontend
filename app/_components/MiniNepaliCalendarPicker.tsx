@@ -50,7 +50,7 @@ export function MiniCalendar({
     month: number;
     day: number;
   } | null>(value || null);
-  const [showAD, setShowAD] = useState(false);
+  const [showAD, setShowAD] = useState(true);
   const [showYearSelector, setShowYearSelector] = useState(false);
   const [showMonthSelector, setShowMonthSelector] = useState(false);
 

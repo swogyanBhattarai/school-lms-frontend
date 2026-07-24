@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   Users,
   BookOpen,
@@ -136,13 +136,16 @@ const AVATAR_COLORS = [
   { bg: "bg-purple-100", text: "text-purple-600" },
 ];
 
-export default function SectionDetailPageClient() {
+export default function SectionDetailPageClient({
+  initialTab: initialTabProp,
+}: {
+  initialTab?: string;
+}) {
   const router = useRouter();
   const params = useParams<{ sectionId: string }>();
   const { toast } = useToast();
   const bulkUploadInputRef = useRef<HTMLInputElement | null>(null);
-  const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab) || "students";
+  const initialTab = (initialTabProp as Tab) || "students";
   const [activeTab, setActiveTab] = useState<Tab>(
     initialTab === "assignments" || initialTab === "diary" ? initialTab : "students",
   );

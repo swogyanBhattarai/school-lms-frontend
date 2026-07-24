@@ -72,8 +72,10 @@ export default function DebouncedSearchInput({
     onChange?.("");
   }, [onChange]);
 
-  // Display value: controlled mode uses externalValue, uncontrolled uses internalValue
-  const displayValue = isControlled ? externalValue : internalValue;
+  // Always display the immediate internal value so typing feels instant.
+  // The `value` prop is only used for external sync (e.g. reset on "Clear filters")
+  // via the useEffect above.
+  const displayValue = internalValue;
 
   return (
     <div className={cn("relative", className)}>

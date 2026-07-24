@@ -1,6 +1,6 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
-import { useRouter, useSearchParams, useParams } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getSubjectById, getSubjectAttendanceStats, getSubjectDiaryStats, updateSubject } from "@/lib/api/subject";
 import { updateDiaryAdmin, deleteDiary } from "@/lib/api/diary";
@@ -88,9 +88,12 @@ function groupByGradeAndSection<T extends { grade: string; section: string }>(
   return gradeMap;
 }
 
-export default function SubjectDetailPageClient() {
+export default function SubjectDetailPageClient({
+  initialSubjectName,
+}: {
+  initialSubjectName?: string;
+}) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const params = useParams();
   const { toast } = useToast();
 
@@ -102,7 +105,7 @@ export default function SubjectDetailPageClient() {
     queryFn: () => getSubjectById(subjectId!),
     enabled: !!subjectId,
   });
-  const subjectName = subjectData?.subjectName || searchParams.get("subject") || "Subject Name";
+  const subjectName = subjectData?.subjectName || initialSubjectName || "Subject Name";
 
   // Edit subject state
   const [isEditingSubject, setIsEditingSubject] = useState(false);

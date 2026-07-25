@@ -72,11 +72,14 @@ export default function AdminSidebar({
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 flex flex-col transition-[transform,width] duration-200 lg:static lg:translate-x-0 overflow-x-hidden",
+          "fixed top-0 left-0 z-30 flex flex-col transition-[transform,width] duration-200 lg:static lg:translate-x-0 overflow-x-hidden h-dvh lg:h-auto",
           collapsed ? "lg:w-16" : "lg:w-60 min-w-[15rem]",
           open ? "translate-x-0" : "-translate-x-full"
         )}
-        style={{ background: "hsl(var(--sidebar-bg))" }}
+        style={{
+          background: "hsl(var(--sidebar-bg))",
+          paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        }}
       >
         <div
           className={cn(

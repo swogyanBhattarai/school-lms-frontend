@@ -67,7 +67,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
 
   return (
     <header
-      className="flex h-[60px] shrink-0 items-center gap-4 px-6"
+      className="flex h-[60px] shrink-0 items-center gap-4 px-6 overflow-hidden"
       style={{
         background: "hsl(var(--card))",
         borderBottom: "1px solid hsl(var(--border))",

@@ -13,7 +13,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   
     return (
       <UserProvider>
-        <div className="flex h-screen overflow-hidden bg-background">
+        <div className="flex h-dvh overflow-hidden bg-background">
           <AdminSidebar
             open={sidebarOpen}
             collapsed={sidebarCollapsed}

@@ -95,14 +95,16 @@
     font-family: "DM Mono", ui-monospace, monospace;
   }
 
-  /* Prevent iOS Safari from auto-zooming on input focus.
-     Safari zooms into any input with font-size < 16px. Setting 16px here
-     disables the zoom without affecting the user's ability to pinch-zoom
-     the page as a whole. */
-  input,
-  textarea,
-  select {
-    font-size: 16px;
+  /* Prevent iOS Safari from auto-zooming on input focus — mobile only.
+     Safari zooms into any input with font-size < 16px. The !important
+     prevents Tailwind text-size utilities (text-sm, text-xs) from
+     overriding this on individual inputs. */
+  @media (max-width: 1023px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 }
 

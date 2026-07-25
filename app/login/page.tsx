@@ -1,12 +1,10 @@
 "use client";
 import { useState, useEffect } from "react";
 import { GraduationCap, BookOpen, Users, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/auth";
 import { getApiErrorMessage } from "@/lib/utils";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -28,7 +26,7 @@ export default function LoginPage() {
       const payload: { username: string; password: string; schoolSlug?: string } = { username, password };
       if (schoolSlug) payload.schoolSlug = schoolSlug;
       await login(payload);
-      router.replace("/");
+      window.location.replace("/");
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Login failed"));
     } finally {

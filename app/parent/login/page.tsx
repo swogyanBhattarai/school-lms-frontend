@@ -1,12 +1,10 @@
 "use client";
 import { useState } from "react";
 import { GraduationCap, BookOpen, Users, ArrowRight } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { login } from "@/lib/api/auth";
 import { getApiErrorMessage } from "@/lib/utils";
 
 export default function ParentLoginPage() {
-  const router = useRouter();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -19,7 +17,7 @@ export default function ParentLoginPage() {
     try {
       // Parent login does not need schoolSlug — phone numbers are globally unique
       await login({ username: phone, password });
-      router.replace("/parent");
+      window.location.replace("/parent");
     } catch (err: unknown) {
       setError(getApiErrorMessage(err, "Login failed"));
     } finally {

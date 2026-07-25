@@ -7,7 +7,6 @@ import {
   useEffect,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
 import { me } from "@/lib/api/auth";
 import { getSchoolNameById } from "@/lib/api/school";
 import { AUTH_REDIRECT_EVENT_NAME } from "@/lib/api/auth/utils";
@@ -29,7 +28,6 @@ type UserContextType = {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -43,7 +41,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     const handleAuthRedirect = (event: Event) => {
       event.preventDefault();
-      router.replace("/login");
+      window.location.replace("/login");
     };
 
     window.addEventListener(AUTH_REDIRECT_EVENT_NAME, handleAuthRedirect);
@@ -51,7 +49,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => {
       window.removeEventListener(AUTH_REDIRECT_EVENT_NAME, handleAuthRedirect);
     };
-  }, [isHydrated, router]);
+  }, [isHydrated]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -91,7 +89,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
         console.error("Failed to get current user:", error);
         setUser(null);
-        router.replace("/login");
+        window.location.replace("/login");
       } finally {
         if (!isMounted) return;
 
@@ -104,7 +102,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [isHydrated, router]);
+  }, [isHydrated]);
 
   return (
     <UserContext.Provider value={{ user, loading, isHydrated }}>

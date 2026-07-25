@@ -22,7 +22,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           />
           <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
             <Topbar onMenuClick={() => setSidebarOpen(true)} />
-            <main className="flex-1 overflow-y-auto">
+            <main className={`flex-1 overflow-y-auto ${sidebarOpen ? "overflow-hidden" : ""}`}>
               <div className="mx-auto w-full max-w-6xl px-6 py-6">
                 {children}
               </div>

@@ -202,6 +202,7 @@ type TenantInfo = {
   isParentPortal: boolean;
   isLocalhostDev: boolean;
   portal: Portal;
+  hostname: string; // from Host header (public-facing), NOT request.nextUrl.hostname
 };
 
 async function resolveTenant(
@@ -219,6 +220,7 @@ async function resolveTenant(
         isParentPortal: false,
         isLocalhostDev: true,
         portal: "none",
+        hostname,
       },
     };
   }
@@ -235,6 +237,7 @@ async function resolveTenant(
         isParentPortal: true,
         isLocalhostDev,
         portal: "parent",
+        hostname,
       },
     };
   }
@@ -259,6 +262,7 @@ async function resolveTenant(
       isParentPortal: false,
       isLocalhostDev,
       portal: "tenant",
+      hostname,
     },
   };
 }
@@ -337,7 +341,7 @@ function routeByRole(
   auth: AuthInfo,
 ): NextResponse {
   const { pathname } = request.nextUrl;
-  const { hostname } = request.nextUrl;
+  const { hostname } = tenant; // from Host header, NOT request.nextUrl.hostname
   const { isAdmin, isTeacher, isParent, payload } = auth;
 
   // ── School subdomain: PARENT user → redirect to parent portal ──

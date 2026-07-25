@@ -115,14 +115,18 @@ function isLocalhost(hostname: string): boolean {
 }
 
 // ── Build a cross-subdomain URL that works on both localhost and production ──
-// On localhost:  subdomain.localhost:PORT/path
-// On production: subdomain.KNOWN_DOMAIN/path
+// Uses .hostname and explicit .port so the dev port (:3000) never leaks into
+// production redirects (the .host setter preserves the existing port from baseUrl).
+// On localhost:  subdomain.localhost:3000/path
+// On production: subdomain.KNOWN_DOMAIN/path  (no explicit port → 443 assumed)
 function subdomainUrl(subdomain: string, hostname: string, baseUrl: string | URL, pathname: string): URL {
   const url = new URL(pathname, baseUrl);
   if (isLocalhost(hostname)) {
-    url.host = `${subdomain}.localhost`;
+    url.hostname = `${subdomain}.localhost`;
+    url.port = "3000";
   } else if (KNOWN_DOMAIN) {
-    url.host = `${subdomain}.${KNOWN_DOMAIN}`;
+    url.hostname = `${subdomain}.${KNOWN_DOMAIN}`;
+    url.port = "";  // clear any dev port — production serves on 443
   }
   return url;
 }

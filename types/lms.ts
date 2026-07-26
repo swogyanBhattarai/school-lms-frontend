@@ -619,6 +619,7 @@ export interface CurrentUserInfoResponse {
   schoolId: number;
   parentId: number | null;
   teacherId: number | null;
+  accountantId: number | null;
 }
 
 // --- StudentFee Enums ---

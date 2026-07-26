@@ -123,6 +123,7 @@ const HOME_BY_ROLE: Record<Portal, Record<string, string>> = {
     admin: "/admin",
     teacher: "/teacher",
     parent: "/parent",
+    accountant: "/accountant",
     default: "/student",
   },
   parent: {
@@ -133,6 +134,7 @@ const HOME_BY_ROLE: Record<Portal, Record<string, string>> = {
     admin: "/admin",
     teacher: "/teacher",
     parent: "/parent",
+    accountant: "/accountant",
     default: "/student",
   },
 };
@@ -175,12 +177,13 @@ function hasRole(roles: string[], ...candidates: string[]): boolean {
   return candidates.some((c) => roles.includes(c));
 }
 
-type RoleSet = { isAdmin: boolean; isTeacher: boolean; isParent: boolean };
+type RoleSet = { isAdmin: boolean; isTeacher: boolean; isParent: boolean; isAccountant: boolean };
 function classifyRoles(roles: string[]): RoleSet {
   return {
     isAdmin: hasRole(roles, "ROLE_ADMIN", "ADMIN"),
     isTeacher: hasRole(roles, "ROLE_TEACHER", "TEACHER"),
     isParent: hasRole(roles, "ROLE_PARENT", "PARENT"),
+    isAccountant: hasRole(roles, "ROLE_ACCOUNTANT", "ACCOUNTANT"),
   };
 }
 
@@ -342,7 +345,7 @@ function routeByRole(
 ): NextResponse {
   const { pathname } = request.nextUrl;
   const { hostname } = tenant; // from Host header, NOT request.nextUrl.hostname
-  const { isAdmin, isTeacher, isParent, payload } = auth;
+  const { isAdmin, isTeacher, isParent, isAccountant, payload } = auth;
 
   // ── School subdomain: PARENT user → redirect to parent portal ──
   // Checked FIRST, before any path-specific guard, so a parent landing on
@@ -365,7 +368,7 @@ function routeByRole(
   if (pathname === "/") {
     const table = HOME_BY_ROLE[tenant.portal];
     const target =
-      table[auth.isAdmin ? "admin" : auth.isTeacher ? "teacher" : auth.isParent ? "parent" : "default"] ??
+      table[auth.isAdmin ? "admin" : auth.isTeacher ? "teacher" : auth.isParent ? "parent" : auth.isAccountant ? "accountant" : "default"] ??
       table.default;
     const url = request.nextUrl.clone();
     url.pathname = target;
@@ -385,12 +388,19 @@ function routeByRole(
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  // ── Accountant route guard (admins can also access accountant pages) ──
+  if (pathname.startsWith("/accountant") && !isAccountant && !isAdmin) {
+    log("[proxy] non-accountant accessing /accountant, redirecting to /");
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   // ── /parent/* guard: PARENT role only ──
   if (pathname.startsWith("/parent") && !isParent) {
     log("[proxy] non-parent accessing /parent/*, redirecting to own dashboard");
     const url = request.nextUrl.clone();
     if (isAdmin) url.pathname = "/admin";
     else if (isTeacher) url.pathname = "/teacher";
+    else if (isAccountant) url.pathname = "/accountant";
     else url.pathname = "/";
     return NextResponse.redirect(url);
   }
@@ -406,6 +416,11 @@ function routeByRole(
     if (slug && isTeacher) {
       const dest = subdomainUrl(slug, hostname, request.url, "/teacher");
       log(`[proxy] non-parent on parent portal, redirecting to ${dest.host}/teacher`);
+      return NextResponse.redirect(dest);
+    }
+    if (slug && isAccountant) {
+      const dest = subdomainUrl(slug, hostname, request.url, "/accountant");
+      log(`[proxy] non-parent on parent portal, redirecting to ${dest.host}/accountant`);
       return NextResponse.redirect(dest);
     }
     log("[proxy] non-parent on parent portal, redirecting to /parent/login?error=unauthorized");

@@ -26,7 +26,7 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
-import DateConverter from "@remotemerge/nepali-date-converter";
+import { convertADToBS } from "@/lib/nepali-calendar";
 import { cn } from "@/lib/utils";
 import { getStudents, getStudentWithoutParentsCount } from "@/lib/api/student";
 import { getAllTeachers } from "@/lib/api/teacher";
@@ -75,9 +75,9 @@ const formatAdDate = (dateStr: string) => {
 
 const formatBsDate = (dateStr: string) => {
   try {
-    const bs = new DateConverter(dateStr).toBs();
+    const bs = convertADToBS(new Date(dateStr));
     const monthNames = ["Baisakh", "Jestha", "Ashad", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
-    return `${monthNames[bs.month - 1]} ${bs.date}, ${bs.year}`;
+    return `${monthNames[bs.month]} ${bs.day}, ${bs.year}`;
   } catch {
     return "";
   }

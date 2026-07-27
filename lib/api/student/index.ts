@@ -5,6 +5,7 @@ import type {
   StudentDetailResponse,
   StudentResponse,
   StudentUpdate,
+  StudentWithoutParents,
 } from "@/types/lms";
 
 export type StudentQueryParams = {
@@ -64,4 +65,12 @@ export const updateStudent = async (
  */
 export const deleteStudent = async (id: number): Promise<void> => {
   await api.delete(`/api/student/${id}`);
+};
+
+/**
+ * Fetch count of students without parents
+ */
+export const getStudentWithoutParentsCount = async (): Promise<StudentWithoutParents> => {
+  const response = await api.get<StudentWithoutParents>("/api/student/dashboard/student-without-parents");
+  return response.data;
 };

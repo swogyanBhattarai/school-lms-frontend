@@ -2,6 +2,8 @@ import api from "@/lib/api";
 import type {
   AttendanceModel,
   AttendanceResponse,
+  AttendanceDashboardStats,
+  AttendanceTeacherSummary,
   MassAttendance,
   PerStudentAttendanceSummary,
 } from "@/types/lms";
@@ -129,5 +131,21 @@ export const getStudentDailyAttendance = async (
     "/api/attendance/student-daily",
     { params: { studentId, date } }
   );
+  return response.data;
+};
+
+/**
+ * Fetch attendance dashboard stats (total assignments, completed, avg %)
+ */
+export const getAttendanceDashboardStats = async (): Promise<AttendanceDashboardStats> => {
+  const response = await api.get<AttendanceDashboardStats>("/api/attendance/dashboard/stats");
+  return response.data;
+};
+
+/**
+ * Fetch teacher attendance summary (who has/hasn't marked attendance per section/subject)
+ */
+export const getAttendanceTeacherSummary = async (): Promise<AttendanceTeacherSummary[]> => {
+  const response = await api.get<AttendanceTeacherSummary[]>("/api/attendance/dashboard/teacher-summary");
   return response.data;
 };

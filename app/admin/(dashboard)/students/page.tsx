@@ -13,9 +13,15 @@ export default async function StudentsPage({
     pageNum?: string;
     pageSize?: string;
     hasSectionAssignment?: string;
+    active?: string;
   }>;
 }) {
   const params = await searchParams;
+
+  // Map ?active=false → hasSectionAssignment=inactive for the unassigned-students redirect
+  const hasSectionAssignment =
+    params.hasSectionAssignment ?? (params.active === "false" ? "inactive" : undefined);
+
   return (
     <StudentsPageClient
       initialStudentName={params.studentName}
@@ -25,7 +31,7 @@ export default async function StudentsPage({
       initialSortDir={params.sortDir}
       initialPageNum={params.pageNum}
       initialPageSize={params.pageSize}
-      initialHasSectionAssignment={params.hasSectionAssignment}
+      initialHasSectionAssignment={hasSectionAssignment}
     />
   );
 }

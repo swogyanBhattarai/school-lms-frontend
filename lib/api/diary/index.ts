@@ -1,7 +1,9 @@
 import api from "@/lib/api";
 import type {
   DiaryCreate,
+  DiaryDashboardStats,
   DiaryResponse,
+  DiaryTeacherSummary,
   DiaryUpdate,
   DiaryUpdateAdmin,
   PageResponse,
@@ -51,4 +53,14 @@ export const updateDiaryAdmin = async (
 
 export const deleteDiary = async (diaryId: number): Promise<void> => {
   await api.delete(`/api/diary/${diaryId}`);
+};
+
+export const getDiaryTeacherSummary = async (): Promise<DiaryTeacherSummary[]> => {
+  const res = await api.get<DiaryTeacherSummary[]>("/api/diary/dashboard/teacher-summary");
+  return res.data;
+};
+
+export const getDashboardDiaryStats = async (): Promise<DiaryDashboardStats> => {
+  const res = await api.get<DiaryDashboardStats>("/api/diary/dashboard/stats");
+  return res.data;
 };

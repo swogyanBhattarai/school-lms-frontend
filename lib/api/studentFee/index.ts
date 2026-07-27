@@ -4,6 +4,7 @@ import type {
   FeeStatResponse,
   FeeTypeStatResponse,
   OverdueStudentResponse,
+  RecentStudentFee,
   StudentFeeCreate,
   StudentFeeResponse,
   SummaryFeeStats,
@@ -124,4 +125,9 @@ export const deleteStudentFee = async (studentFeeId: number): Promise<void> => {
 
 export const deleteFeePayment = async (feePaymentId: number): Promise<void> => {
   await api.delete(`${BASE_URL}/payment/${feePaymentId}`);
+};
+
+export const getRecentStudentFeePayment = async (): Promise<RecentStudentFee[]> => {
+  const res = await api.get<RecentStudentFee[]>(`${BASE_URL}/dashboard/recent`);
+  return res.data;
 };

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -11,14 +11,11 @@ import {
   Layers,
   AlertTriangle,
   CheckCircle2,
-  TrendingUp,
   ChevronRight,
   Calendar,
-  Clock,
   DollarSign,
   Banknote,
   BookText,
-  XCircle,
   UserX,
   ClipboardList,
   ClipboardCheck,
@@ -29,15 +26,22 @@ import {
   Settings,
   type LucideIcon,
 } from "lucide-react";
+import DateConverter from "@remotemerge/nepali-date-converter";
 import { cn } from "@/lib/utils";
-import { getStudents } from "@/lib/api/student";
+import { getStudents, getStudentWithoutParentsCount } from "@/lib/api/student";
 import { getAllTeachers } from "@/lib/api/teacher";
-import { getFeeStats, getOverdueStudents } from "@/lib/api/studentFee";
-import { findAllFiltered } from "@/lib/api/diary";
+import { getFeeStats, getOverdueStudents, getRecentStudentFeePayment } from "@/lib/api/studentFee";
+import { getDiaryTeacherSummary, getDashboardDiaryStats } from "@/lib/api/diary";
+import { getAttendanceDashboardStats, getAttendanceTeacherSummary } from "@/lib/api/attendance";
 import type {
   TeacherResponse,
-  DiaryResponse,
   OverdueStudentResponse,
+  AttendanceDashboardStats,
+  AttendanceTeacherSummary,
+  DiaryDashboardStats,
+  DiaryTeacherSummary,
+  RecentStudentFee,
+  StudentWithoutParents,
 } from "@/types/lms";
 
 // ─────────────────────────────────────────────
@@ -50,9 +54,6 @@ const todayStr = () => {
 };
 const today = todayStr();
 
-const yesterdayDate = new Date(Date.now() - 86400000);
-const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
-
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -60,6 +61,27 @@ const formatCurrency = (amount: number) =>
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
+
+const ordinalSuffix = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
+
+const formatAdDate = (dateStr: string) => {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-US", { month: "long", day: undefined }) + " " + ordinalSuffix(d.getDate()) + " " + d.getFullYear();
+};
+
+const formatBsDate = (dateStr: string) => {
+  try {
+    const bs = new DateConverter(dateStr).toBs();
+    const monthNames = ["Baisakh", "Jestha", "Ashad", "Shrawan", "Bhadra", "Ashwin", "Kartik", "Mangsir", "Poush", "Magh", "Falgun", "Chaitra"];
+    return `${monthNames[bs.month - 1]} ${bs.date}, ${bs.year}`;
+  } catch {
+    return "";
+  }
+};
 
 const formatCurrencyCompact = (amount: number) => {
   if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
@@ -140,89 +162,6 @@ const ACTIVITY_BGS: Record<string, string> = {
 // ─────────────────────────────────────────────
 //  Mock data
 // ─────────────────────────────────────────────
-
-const MOCK_ATTENDANCE = {
-  totalSections: 18,
-  markedSections: 12,
-  unmarkedSections: [
-    { id: 1, grade: "10", name: "A", teacher: "Sarah Smith", period: "1st" },
-    { id: 2, grade: "9", name: "B", teacher: "Mike Johnson", period: "2nd" },
-    { id: 3, grade: "8", name: "A", teacher: "Emma Wilson", period: "3rd" },
-    { id: 4, grade: "7", name: "C", teacher: "Rajesh Sharma", period: "4th" },
-    { id: 5, grade: "6", name: "B", teacher: "Priya Patel", period: "5th" },
-    { id: 6, grade: "10", name: "C", teacher: "David Thapa", period: "6th" },
-  ],
-};
-
-const MOCK_SECTIONS_WITHOUT_DIARY = [
-  { id: 1, grade: "10", name: "A" },
-  { id: 2, grade: "9", name: "B" },
-  { id: 3, grade: "8", name: "A" },
-  { id: 4, grade: "7", name: "C" },
-  { id: 5, grade: "6", name: "B" },
-];
-
-const MOCK_STUDENTS_WITHOUT_PARENTS = 45;
-
-const MOCK_TEACHER_ATTENDANCE_PENDING = [
-  {
-    teacherName: "Sarah Smith",
-    pendingSections: [
-      { grade: "10", name: "A" },
-      { grade: "10", name: "B" },
-    ],
-  },
-  {
-    teacherName: "Mike Johnson",
-    pendingSections: [{ grade: "9", name: "B" }],
-  },
-  {
-    teacherName: "Emma Wilson",
-    pendingSections: [
-      { grade: "8", name: "A" },
-      { grade: "8", name: "C" },
-    ],
-  },
-  {
-    teacherName: "Rajesh Sharma",
-    pendingSections: [{ grade: "7", name: "C" }],
-  },
-  {
-    teacherName: "Priya Patel",
-    pendingSections: [{ grade: "6", name: "B" }],
-  },
-];
-
-const MOCK_TEACHER_DIARY_PENDING = [
-  {
-    teacherName: "Anita Gurung",
-    pendingSections: [
-      { grade: "10", name: "A" },
-      { grade: "9", name: "A" },
-    ],
-  },
-  {
-    teacherName: "David Thapa",
-    pendingSections: [{ grade: "9", name: "B" }],
-  },
-  {
-    teacherName: "Emma Wilson",
-    pendingSections: [{ grade: "8", name: "A" }],
-  },
-  {
-    teacherName: "Suman Rai",
-    pendingSections: [
-      { grade: "7", name: "C" },
-      { grade: "7", name: "A" },
-    ],
-  },
-];
-
-const MOCK_RECENT_PAYMENTS = [
-  { studentName: "Anita Kumari", amount: 3200, time: "2 hrs ago" },
-  { studentName: "Rohan Thapa", amount: 15000, time: "3 hrs ago" },
-  { studentName: "Sita KC", amount: 4500, time: "4 hrs ago" },
-];
 
 interface ActivityEntry {
   id: number;
@@ -339,14 +278,6 @@ const MOCK_ACTIVITY: ActivityEntry[] = [
   },
 ];
 
-const MOCK_WEEKLY_DIARY_TREND = [
-  { day: "Mon", count: 18 },
-  { day: "Tue", count: 22 },
-  { day: "Wed", count: 15 },
-  { day: "Thu", count: 24 },
-  { day: "Fri", count: 12 },
-];
-
 const MOCK_WEEKLY_ATTENDANCE = [
   { day: "Mon", marked: 16, total: 18 },
   { day: "Tue", marked: 18, total: 18 },
@@ -390,28 +321,40 @@ const useOverdueData = () =>
     queryFn: () => getOverdueStudents(),
   });
 
-const useDiaryToday = () =>
+const useAttendanceDashboardStats = () =>
   useQuery({
-    queryKey: ["dashboard", "diary-today"],
-    queryFn: () =>
-      findAllFiltered({
-        startDate: today,
-        endDate: today,
-        pageSize: 4,
-        pageNum: 1,
-      }),
+    queryKey: ["dashboard", "attendance-stats"],
+    queryFn: () => getAttendanceDashboardStats(),
   });
 
-const useDiaryYesterday = () =>
+const useAttendanceTeacherSummary = () =>
   useQuery({
-    queryKey: ["dashboard", "diary-yesterday"],
-    queryFn: () =>
-      findAllFiltered({
-        startDate: yesterdayStr,
-        endDate: yesterdayStr,
-        pageSize: 1,
-        pageNum: 1,
-      }),
+    queryKey: ["dashboard", "attendance-teacher-summary"],
+    queryFn: () => getAttendanceTeacherSummary(),
+  });
+
+const useStudentWithoutParents = () =>
+  useQuery({
+    queryKey: ["dashboard", "student-without-parents"],
+    queryFn: () => getStudentWithoutParentsCount(),
+  });
+
+const useDiaryTeacherSummary = () =>
+  useQuery({
+    queryKey: ["dashboard", "diary-teacher-summary"],
+    queryFn: () => getDiaryTeacherSummary(),
+  });
+
+const useDashboardDiaryStats = () =>
+  useQuery({
+    queryKey: ["dashboard", "diary-stats"],
+    queryFn: () => getDashboardDiaryStats(),
+  });
+
+const useRecentPayments = () =>
+  useQuery({
+    queryKey: ["dashboard", "recent-payments"],
+    queryFn: () => getRecentStudentFeePayment(),
   });
 
 // ─────────────────────────────────────────────
@@ -468,13 +411,13 @@ function AlertCell({
     <button
       onClick={onClick}
       className={cn(
-        "flex items-start gap-2.5 p-3 sm:p-3.5 text-left transition-colors w-full",
+        "flex items-center gap-2.5 p-3 sm:p-3.5 text-left transition-colors w-full h-full",
         isGood ? "bg-emerald-50/60" : "hover:bg-slate-50",
       )}
     >
       <div
         className={cn(
-          "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5",
+          "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
           isGood ? "bg-emerald-100" : iconBg,
         )}
       >
@@ -515,7 +458,7 @@ function AlertCell({
 //  Progress Bar
 // ─────────────────────────────────────────────
 
-function ProgressBar({
+function AnimatedProgressBar({
   value,
   color,
   height = "h-2",
@@ -526,7 +469,42 @@ function ProgressBar({
   height?: string;
   className?: string;
 }) {
-  const clamped = Math.min(Math.max(value, 0), 100);
+  const [animatedValue, setAnimatedValue] = useState(0);
+  const prevValue = useRef(0);
+  const animationRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const targetValue = Math.min(Math.max(value, 0), 100);
+    const startValue = prevValue.current;
+    const duration = 800;
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = startValue + (targetValue - startValue) * eased;
+
+      setAnimatedValue(current);
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        prevValue.current = targetValue;
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [value]);
+
   return (
     <div
       className={cn(
@@ -536,8 +514,8 @@ function ProgressBar({
       )}
     >
       <div
-        className={cn("h-full rounded-full transition-all duration-700", color)}
-        style={{ width: `${clamped}%` }}
+        className={cn("h-full rounded-full transition-colors duration-500", color)}
+        style={{ width: `${animatedValue}%`, transition: "width 0s" }}
       />
     </div>
   );
@@ -572,29 +550,6 @@ function MiniBarChart({
           </span>
         </div>
       ))}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-//  Diary Entry Row
-// ─────────────────────────────────────────────
-
-function DiaryEntryRow({ entry }: { entry: DiaryResponse }) {
-  return (
-    <div className="flex items-start gap-2 py-2 border-b border-slate-50 last:border-0">
-      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-        <BookText className="h-3 w-3 text-primary" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground truncate">
-          {entry.title}
-        </p>
-        <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
-          {entry.subjectName} · {entry.grade}-{entry.sectionName} ·{" "}
-          {entry.teacherName}
-        </p>
-      </div>
     </div>
   );
 }
@@ -676,47 +631,32 @@ function ActivityRow({ entry }: { entry: ActivityEntry }) {
 }
 
 // ─────────────────────────────────────────────
-//  Section Chip (for inline missing-section lists)
-// ─────────────────────────────────────────────
-
-function SectionChip({
-  grade,
-  name,
-}: {
-  grade: string;
-  name: string;
-}) {
-  return (
-    <span className="inline-flex items-center gap-0.5 text-[11px] bg-amber-50 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 whitespace-nowrap">
-      <XCircle className="h-2.5 w-2.5" />
-      {grade}-{name}
-    </span>
-  );
-}
-
-// ─────────────────────────────────────────────
 //  Teacher Pending Row (for combined completion card)
 // ─────────────────────────────────────────────
 
 function TeacherPendingRow({
   teacherName,
+  teacherId,
   pendingSections,
   accentBg,
   accentColor,
   chipBg,
   chipText,
   chipBorder,
+  onTeacherClick,
 }: {
   teacherName: string;
-  pendingSections: { grade: string; name: string }[];
+  teacherId?: number;
+  pendingSections: { grade: string; name: string; subjectName?: string }[];
   accentBg: string;
   accentColor: string;
   chipBg: string;
   chipText: string;
   chipBorder: string;
+  onTeacherClick?: (teacherId: number) => void;
 }) {
   return (
-    <div className="flex items-start gap-2 py-1.5">
+    <div className="flex items-start gap-2 py-2">
       <div
         className={cn(
           "w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
@@ -728,60 +668,35 @@ function TeacherPendingRow({
         </span>
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-foreground">{teacherName}</p>
-        <div className="flex flex-wrap gap-1 mt-0.5">
-          {pendingSections.map((sec) => (
+        {onTeacherClick && teacherId !== undefined ? (
+          <button
+            type="button"
+            onClick={() => onTeacherClick(teacherId)}
+            className="text-sm font-medium text-foreground text-left"
+          >
+            {teacherName}
+          </button>
+        ) : (
+          <p className="text-sm font-medium text-foreground">{teacherName}</p>
+        )}
+        <div className="flex flex-wrap gap-x-1.5 gap-y-2 mt-1.5">
+          {pendingSections.map((sec, idx) => (
             <span
-              key={`${sec.grade}-${sec.name}`}
+              key={`${sec.grade}-${sec.name}-${sec.subjectName ?? idx}`}
               className={cn(
-                "inline-flex items-center gap-0.5 text-xs font-semibold rounded-full px-2 py-0.5 border",
+                "inline-flex items-center gap-0.5 text-[11px] font-semibold rounded-full px-1.5 py-0.5 border",
                 chipBg,
                 chipText,
                 chipBorder,
               )}
             >
-              <Clock className="h-3 w-3" />
-              {sec.grade}-{sec.name}
+              Class {sec.grade} - {sec.name}
+              {sec.subjectName && <span className="opacity-75">· {sec.subjectName}</span>}
             </span>
           ))}
         </div>
       </div>
     </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-//  Quick Link (compact)
-// ─────────────────────────────────────────────
-
-function QuickLink({
-  label,
-  icon: Icon,
-  iconBg,
-  iconColor,
-  onClick,
-}: {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  iconBg: string;
-  iconColor: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2 hover:shadow-sm hover:border-slate-300 transition-all text-left active:bg-slate-50"
-    >
-      <div
-        className={cn(
-          "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0",
-          iconBg,
-        )}
-      >
-        <Icon className={cn("h-3.5 w-3.5", iconColor)} />
-      </div>
-      <p className="text-xs font-medium text-foreground">{label}</p>
-    </button>
   );
 }
 
@@ -798,12 +713,21 @@ export default function DashboardClient() {
   const { data: teachers = [], isLoading: loadingTeachers } = useTeachers();
   const { data: feeStats, isLoading: loadingFee } = useFeeStatsData();
   const { data: overdue = [], isLoading: loadingOverdue } = useOverdueData();
-  const { data: diaryToday, isLoading: loadingDiaryToday } = useDiaryToday();
-  const { data: diaryYesterday, isLoading: loadingDiaryYesterday } =
-    useDiaryYesterday();
+  const { data: attendanceStats, isLoading: loadingAttendanceStats } =
+    useAttendanceDashboardStats();
+  const { data: attendanceTeacherSummaries = [], isLoading: loadingTeacherSummary } =
+    useAttendanceTeacherSummary();
+  const { data: studentsWithoutParents, isLoading: loadingStudentsWithoutParents } =
+    useStudentWithoutParents();
+  const { data: diaryTeacherSummaries = [], isLoading: loadingDiarySummary } =
+    useDiaryTeacherSummary();
+  const { data: recentPayments = [], isLoading: loadingRecentPayments } =
+    useRecentPayments();
+  const { data: diaryStats, isLoading: loadingDiaryStats } =
+    useDashboardDiaryStats();
 
-  const isLoading = loadingUnassigned || loadingTeachers || loadingFee;
-  const isLoadingDiary = loadingDiaryToday || loadingDiaryYesterday;
+  const isLoading =
+    loadingUnassigned || loadingTeachers || loadingFee || loadingAttendanceStats || loadingStudentsWithoutParents || loadingDiaryStats;
 
   // Derived
   const unassignedTeacherCount = useMemo(
@@ -820,19 +744,66 @@ export default function DashboardClient() {
       ? Math.round((feeStats.totalCollected / feeStats.totalNeeded) * 100)
       : 0;
 
-  const diaryTodayCount = diaryToday?.totalElements ?? 0;
-  const diaryYesterdayCount = diaryYesterday?.totalElements ?? 0;
-  const diaryChange = diaryTodayCount - diaryYesterdayCount;
+  const attendanceCompletionRate =
+    attendanceStats && attendanceStats.totalClassAssignments > 0
+      ? Math.round(
+          (attendanceStats.completedAttendance / attendanceStats.totalClassAssignments) * 100,
+        )
+      : 0;
 
-  const attendanceRate = Math.round(
-    (MOCK_ATTENDANCE.markedSections / MOCK_ATTENDANCE.totalSections) * 100,
-  );
+  // Diary completion rate
+  const diaryCompletionRate =
+    diaryStats && diaryStats.totalClassAssignments > 0
+      ? Math.round(
+          (diaryStats.totalDiaryAdded / diaryStats.totalClassAssignments) * 100,
+        )
+      : 0;
+
+  // Derive teacher attendance pending from teacher summary
+  const teacherAttendancePending = useMemo(() => {
+    const teacherMap = new Map<number, { teacherName: string; teacherId: number; pendingSections: { grade: string; name: string; subjectName: string }[] }>();
+
+    attendanceTeacherSummaries
+      .filter((s: AttendanceTeacherSummary) => !s.attendanceCompleted)
+      .forEach((s: AttendanceTeacherSummary) => {
+        if (!teacherMap.has(s.teacherId)) {
+          teacherMap.set(s.teacherId, { teacherName: s.teacherName, teacherId: s.teacherId, pendingSections: [] });
+        }
+        teacherMap.get(s.teacherId)!.pendingSections.push({
+          grade: s.grade,
+          name: s.sectionName,
+          subjectName: s.subjectName,
+        });
+      });
+
+    return Array.from(teacherMap.values());
+  }, [attendanceTeacherSummaries]);
+
+  // Derive teacher diary pending from diary summary
+  const teacherDiaryPending = useMemo(() => {
+    const teacherMap = new Map<number, { teacherName: string; teacherId: number; pendingSections: { grade: string; name: string; subjectName: string }[] }>();
+
+    diaryTeacherSummaries
+      .filter((s: DiaryTeacherSummary) => !s.diaryCreated)
+      .forEach((s: DiaryTeacherSummary) => {
+        if (!teacherMap.has(s.teacherId)) {
+          teacherMap.set(s.teacherId, { teacherName: s.teacherName, teacherId: s.teacherId, pendingSections: [] });
+        }
+        teacherMap.get(s.teacherId)!.pendingSections.push({
+          grade: s.grade,
+          name: s.sectionName,
+          subjectName: s.subjectName,
+        });
+      });
+
+    return Array.from(teacherMap.values());
+  }, [diaryTeacherSummaries]);
 
   const topOverdue = useMemo(
     () =>
       [...(overdue as OverdueStudentResponse[])]
         .sort((a, b) => b.overdueAmount - a.overdueAmount)
-        .slice(0, 5),
+        .slice(0, 6),
     [overdue],
   );
 
@@ -845,10 +816,13 @@ export default function DashboardClient() {
       {/* ───────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+          <h1 className="text-xl sm:text-3xl font-bold tracking-tight text-foreground">
             Dashboard
           </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">{today}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-medium text-foreground">{formatAdDate(today)}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{formatBsDate(today)}</p>
         </div>
       </div>
 
@@ -877,7 +851,7 @@ export default function DashboardClient() {
               icon={UserX}
               iconBg="bg-red-100"
               iconColor="text-red-600"
-              label="Unassigned Students"
+              label="Students Unassigned To Sections"
               value={unassignedStudents ?? 0}
               subtext={
                 unassignedStudents && unassignedStudents > 0
@@ -890,13 +864,13 @@ export default function DashboardClient() {
                   : undefined
               }
               isGood={unassignedStudents === 0}
-              onClick={() => router.push("/admin/students")}
+              onClick={() => router.push("/admin/students?active=false")}
             />
             <AlertCell
               icon={UserX}
               iconBg="bg-orange-100"
               iconColor="text-orange-600"
-              label="Unassigned Teachers"
+              label="Teachers Unassigned To Sections"
               value={unassignedTeacherCount}
               subtext={
                 unassignedTeacherCount > 0
@@ -913,11 +887,19 @@ export default function DashboardClient() {
               icon={Users}
               iconBg="bg-violet-100"
               iconColor="text-violet-600"
-              label="Students w/o Parents"
-              value={MOCK_STUDENTS_WITHOUT_PARENTS}
-              subtext="No parent linked to account"
-              actionLabel="Link parents"
-              isGood={false}
+              label="Students w/o Parents Assigned"
+              value={studentsWithoutParents?.studentWithoutParentCount ?? 0}
+              subtext={
+                studentsWithoutParents && studentsWithoutParents.studentWithoutParentCount > 0
+                  ? "No parent linked to account"
+                  : undefined
+              }
+              actionLabel={
+                studentsWithoutParents && studentsWithoutParents.studentWithoutParentCount > 0
+                  ? "Link parents"
+                  : undefined
+              }
+              isGood={studentsWithoutParents ? studentsWithoutParents.studentWithoutParentCount === 0 : false}
               onClick={() => router.push("/admin/students")}
             />
             <AlertCell
@@ -925,11 +907,7 @@ export default function DashboardClient() {
               iconBg="bg-red-100"
               iconColor="text-red-600"
               label="Overdue Fees"
-              value={
-                feeStats
-                  ? formatCurrencyCompact(feeStats.totalOverdue)
-                  : "—"
-              }
+              value={feeStats ? formatCurrency(feeStats.totalOverdue) : "—"}
               subtext={
                 feeStats && feeStats.overdueStudents > 0
                   ? `${feeStats.overdueStudents} students overdue`
@@ -972,7 +950,6 @@ export default function DashboardClient() {
             </div>
 
             <div className="px-4 sm:px-5 py-4 flex-1 flex flex-col">
-              {/* Rate + bar */}
               <div className="flex items-baseline gap-2 mb-3">
                 <span
                   className={cn(
@@ -984,21 +961,20 @@ export default function DashboardClient() {
                 </span>
                 <span className="text-sm text-muted-foreground">collected</span>
               </div>
-              <ProgressBar
+              <AnimatedProgressBar
                 value={collectionRate}
                 color={getProgressColor(collectionRate)}
                 height="h-2"
                 className="mb-4"
               />
 
-              {/* Amounts - compact 4-col */}
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <div className="bg-slate-50 rounded-lg p-2.5">
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
                     Expected
                   </p>
                   <p className="text-sm font-bold text-foreground mt-0.5">
-                    {formatCurrencyCompact(feeStats?.totalNeeded ?? 0)}
+                    {formatCurrency(feeStats?.totalNeeded ?? 0)}
                   </p>
                 </div>
                 <div className="bg-emerald-50 rounded-lg p-2.5">
@@ -1006,7 +982,7 @@ export default function DashboardClient() {
                     Collected
                   </p>
                   <p className="text-sm font-bold text-emerald-700 mt-0.5">
-                    {formatCurrencyCompact(feeStats?.totalCollected ?? 0)}
+                    {formatCurrency(feeStats?.totalCollected ?? 0)}
                   </p>
                 </div>
                 <div className="bg-amber-50 rounded-lg p-2.5">
@@ -1014,7 +990,7 @@ export default function DashboardClient() {
                     Pending
                   </p>
                   <p className="text-sm font-bold text-amber-700 mt-0.5">
-                    {formatCurrencyCompact(
+                    {formatCurrency(
                       (feeStats?.totalNeeded ?? 0) -
                         (feeStats?.totalCollected ?? 0) -
                         (feeStats?.totalOverdue ?? 0),
@@ -1026,12 +1002,11 @@ export default function DashboardClient() {
                     Overdue
                   </p>
                   <p className="text-sm font-bold text-red-700 mt-0.5">
-                    {formatCurrencyCompact(feeStats?.totalOverdue ?? 0)}
+                    {formatCurrency(feeStats?.totalOverdue ?? 0)}
                   </p>
                 </div>
               </div>
 
-              {/* Payment status - inline legend beside bar */}
               {feeStats && (
                 <div className="mt-4 pt-3 border-t border-slate-100">
                   <div className="flex items-center gap-3">
@@ -1085,36 +1060,51 @@ export default function DashboardClient() {
                 </div>
               )}
 
-              {/* Recent Payments */}
               <div className="mt-auto pt-3 border-t border-slate-100">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">
                   Recent Payments
                 </p>
-                <div className="space-y-1.5">
-                  {MOCK_RECENT_PAYMENTS.map((p, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                {loadingRecentPayments ? (
+                  <div className="space-y-2">
+                    <SkeletonBar className="h-5 w-full" />
+                    <SkeletonBar className="h-5 w-full" />
+                    <SkeletonBar className="h-5 w-3/4" />
+                  </div>
+                ) : recentPayments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-3">
+                    No recent payments
+                  </p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {recentPayments.slice(0, 5).map((p, i) => (
+                      <div
+                        key={p.studentId ?? i}
+                        onClick={() => router.push(`/admin/students/${p.studentId}?tab=fees`)}
+                        className="flex items-center justify-between cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                          </div>
+                          <span className="text-sm font-medium text-foreground truncate">
+                            {p.studentName}
+                          </span>
                         </div>
-                        <span className="text-sm font-medium text-foreground truncate">
-                          {p.studentName}
-                        </span>
+                        <div className="text-right flex-shrink-0 ml-2">
+                          <span className="text-sm font-semibold text-emerald-600">
+                            {formatCurrency(p.amountPaid)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground ml-1.5">
+                            {new Date(p.paidAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right flex-shrink-0 ml-2">
-                        <span className="text-sm font-semibold text-emerald-600">
-                          {formatCurrencyCompact(p.amount)}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground ml-1.5">
-                          {p.time}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1144,11 +1134,13 @@ export default function DashboardClient() {
 
             <div className="px-3 py-2 flex-1">
               {topOverdue.length === 0 ? (
-                <div className="text-center py-8">
-                  <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    No overdue fees
-                  </p>
+                <div className="text-center py-8 sm:flex sm:items-center sm:justify-center sm:h-full sm:py-0">
+                  <div>
+                    <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">
+                      No overdue fees
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-0">
@@ -1157,9 +1149,7 @@ export default function DashboardClient() {
                       key={`${s.studentId}-${s.feeType}`}
                       student={s}
                       onClick={() =>
-                        router.push(
-                          `/admin/students/${s.studentId}?tab=fees`,
-                        )
+                        router.push(`/admin/students/${s.studentId}?tab=fees`)
                       }
                     />
                   ))}
@@ -1184,193 +1174,127 @@ export default function DashboardClient() {
               <h2 className="text-sm font-semibold text-foreground">
                 Today&apos;s Attendance
               </h2>
-              <p className="text-[11px] text-muted-foreground">{today}</p>
             </div>
           </div>
 
-          <div className="px-4 sm:px-5 py-4 flex-1 flex flex-col">
-            {/* Stat + MiniBarChart (matching classwork style) */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-foreground">
-                  {MOCK_ATTENDANCE.markedSections}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  / {MOCK_ATTENDANCE.totalSections} sections
-                </span>
-              </div>
-              <MiniBarChart
-                data={MOCK_WEEKLY_ATTENDANCE.map((d) => ({
-                  day: d.day,
-                  count: d.marked,
-                }))}
-                color="bg-blue-300"
-              />
+          {loadingAttendanceStats ? (
+            <div className="p-5 space-y-3">
+              <SkeletonBar className="h-6 w-32" />
+              <SkeletonBar className="h-4 w-full" />
+              <SkeletonBar className="h-6 w-24" />
+              <SkeletonBar className="h-2 w-full" />
             </div>
-
-            <ProgressBar
-              value={attendanceRate}
-              color={getProgressColor(attendanceRate)}
-              height="h-2"
-              className="mb-3"
-            />
-
-            {/* Detailed rows for first 3 unmarked sections */}
-            {MOCK_ATTENDANCE.unmarkedSections.length > 0 && (
-              <div className="space-y-0.5 mb-3">
-                {MOCK_ATTENDANCE.unmarkedSections.slice(0, 3).map((sec) => {
-                  const gc = getGradeColor(sec.grade);
-                  return (
-                    <div
-                      key={sec.id}
-                      className="flex items-center gap-2 py-1.5"
-                    >
-                      <span
-                        className={cn(
-                          "text-[11px] font-bold rounded px-1.5 py-0.5 whitespace-nowrap",
-                          gc.bg,
-                          gc.text,
-                        )}
-                      >
-                        {sec.grade}-{sec.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground truncate">
-                        {sec.teacher} · {sec.period} Period
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Pending attendance at bottom with divider (matching classwork style) */}
-            {MOCK_ATTENDANCE.unmarkedSections.length > 0 && (
-              <div className="mt-auto pt-2 border-t border-slate-100">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Clock className="h-3 w-3 text-amber-600" />
-                  <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">
-                    {MOCK_ATTENDANCE.unmarkedSections.length} pending
+          ) : attendanceStats ? (
+            <div className="px-4 sm:px-5 py-4 flex-1 flex flex-col">
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-bold text-foreground">
+                    {attendanceStats.completedAttendance}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    / {attendanceStats.totalClassAssignments} assignments
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {MOCK_ATTENDANCE.unmarkedSections.map((sec) => (
-                    <SectionChip
-                      key={sec.id}
-                      grade={sec.grade}
-                      name={sec.name}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ─── Today's Diary Activity ─── */}
-        <div className="rounded-xl border bg-card shadow-sm flex flex-col">
-          <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                <BookText className="h-4 w-4 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-foreground">
-                  Today&apos;s Classwork
-                </h2>
-                <p className="text-[11px] text-muted-foreground">{today}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push("/admin/sections")}
-              className="text-xs font-medium text-primary hover:underline flex items-center gap-0.5"
-            >
-              View all <ChevronRight className="h-3 w-3" />
-            </button>
-          </div>
-
-          {isLoadingDiary ? (
-            <div className="p-5 space-y-3">
-              <SkeletonBar className="h-6 w-24" />
-              {[1, 2, 3].map((i) => (
-                <SkeletonBar key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : (
-            <div className="px-4 sm:px-5 py-4 flex-1 flex flex-col">
-              {/* Count + change + sparkline */}
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold text-foreground">
-                      {diaryTodayCount}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      entries
-                    </span>
-                  </div>
-                  {diaryChange !== 0 && (
-                    <div
-                      className={cn(
-                        "flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-full",
-                        diaryChange > 0
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-red-50 text-red-600",
-                      )}
-                    >
-                      <TrendingUp
-                        className={cn(
-                          "h-3 w-3",
-                          diaryChange < 0 && "rotate-180",
-                        )}
-                      />
-                      {Math.abs(diaryChange)}
-                    </div>
-                  )}
-                </div>
                 <MiniBarChart
-                  data={MOCK_WEEKLY_DIARY_TREND}
-                  color="bg-primary/60"
+                  data={MOCK_WEEKLY_ATTENDANCE.map((d) => ({
+                    day: d.day,
+                    count: d.marked,
+                  }))}
+                  color="bg-blue-300"
                 />
               </div>
 
-              {/* Recent entries */}
-              {(diaryToday?.content ?? []).length > 0 ? (
-                <div className="mb-3">
-                  {(diaryToday?.content ?? [])
-                    .slice(0, 3)
-                    .map((entry: DiaryResponse) => (
-                      <DiaryEntryRow key={entry.diaryId} entry={entry} />
-                    ))}
+              <div className="mb-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                  <span>Attendance completion</span>
+                  <span>{attendanceCompletionRate}%</span>
                 </div>
-              ) : (
-                <div className="text-center py-5">
-                  <BookText className="h-7 w-7 text-slate-300 mx-auto mb-1.5" />
-                  <p className="text-sm text-muted-foreground">
-                    No diary entries today
-                  </p>
-                </div>
-              )}
+                <AnimatedProgressBar
+                  value={attendanceCompletionRate}
+                  color={getProgressColor(attendanceCompletionRate)}
+                  height="h-2"
+                />
+              </div>
 
-              {/* Missing classwork - inline chips */}
-              {MOCK_SECTIONS_WITHOUT_DIARY.length > 0 && (
-                <div className="mt-auto pt-2 border-t border-slate-100">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <Clock className="h-3 w-3 text-amber-600" />
-                    <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">
-                      {MOCK_SECTIONS_WITHOUT_DIARY.length} no classwork
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {MOCK_SECTIONS_WITHOUT_DIARY.map((sec) => (
-                      <SectionChip
-                        key={sec.id}
-                        grade={sec.grade}
-                        name={sec.name}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
+              <div className="mt-auto flex items-baseline gap-2 mb-1.5">
+                <span className="text-2xl font-bold text-emerald-600">
+                  {Math.round(attendanceStats.avgStudentAttendancePercent)}%
+                </span>
+                <span className="text-sm text-muted-foreground">
+                  student attendance across sections
+                </span>
+              </div>
+              <AnimatedProgressBar
+                value={Math.round(attendanceStats.avgStudentAttendancePercent)}
+                color="bg-emerald-500"
+                height="h-2"
+              />
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">No attendance data</p>
+            </div>
+          )}
+        </div>
+
+        {/* ─── Today's Diary ─── */}
+        <div className="rounded-xl border bg-card shadow-sm flex flex-col">
+          <div className="flex items-center gap-2.5 px-4 sm:px-5 py-3 border-b border-slate-100">
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+              <BookText className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">
+                Today&apos;s Diary
+              </h2>
+            </div>
+          </div>
+
+          {loadingDiaryStats ? (
+            <div className="p-5 space-y-3">
+              <SkeletonBar className="h-6 w-32" />
+              <SkeletonBar className="h-4 w-full" />
+              <SkeletonBar className="h-6 w-24" />
+              <SkeletonBar className="h-2 w-full" />
+            </div>
+          ) : diaryStats ? (
+          <div className="px-4 sm:px-5 py-4 flex-1 flex flex-col">
+            {/* Stat */}
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-2xl font-bold text-foreground">
+                {diaryStats.totalDiaryAdded}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                / {diaryStats.totalClassAssignments} entries
+              </span>
+            </div>
+
+            {/* Completion bar */}
+            <div className="mb-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <span>Diary completion</span>
+                <span>{diaryCompletionRate}%</span>
+              </div>
+              <AnimatedProgressBar
+                value={diaryCompletionRate}
+                color={getProgressColor(diaryCompletionRate)}
+                height="h-2"
+              />
+            </div>
+
+            {/* Total teachers — pushed to bottom to fill space */}
+            <div className="mt-auto flex items-baseline gap-2 mb-1.5">
+              <span className="text-2xl font-bold text-primary">
+                {diaryStats.totalTeachers}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                teachers assigned
+              </span>
+            </div>
+          </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">No diary data</p>
             </div>
           )}
         </div>
@@ -1388,13 +1312,12 @@ export default function DashboardClient() {
             <h2 className="text-sm font-semibold text-foreground">
               Teacher Completion Status
             </h2>
-            <p className="text-[11px] text-muted-foreground">{today}</p>
           </div>
           <button
             onClick={() => router.push("/admin/teachers")}
             className="ml-auto text-xs font-medium text-primary hover:underline flex items-center gap-0.5"
           >
-            View all teachers <ChevronRight className="h-3 w-3" />
+            View all <ChevronRight className="h-3 w-3" />
           </button>
         </div>
 
@@ -1406,11 +1329,18 @@ export default function DashboardClient() {
               <span className="text-xs font-semibold text-foreground">
                 Attendance Pending
               </span>
-              <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5">
-                {MOCK_TEACHER_ATTENDANCE_PENDING.length}
-              </span>
+              {!loadingTeacherSummary && (
+                <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 rounded-full px-1.5 py-0.5">
+                  {teacherAttendancePending.length}
+                </span>
+              )}
             </div>
-            {MOCK_TEACHER_ATTENDANCE_PENDING.length === 0 ? (
+            {loadingTeacherSummary ? (
+              <div className="space-y-2 py-2">
+                <SkeletonBar className="h-8 w-full" />
+                <SkeletonBar className="h-8 w-3/4" />
+              </div>
+            ) : teacherAttendancePending.length === 0 ? (
               <div className="text-center py-4">
                 <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
                 <p className="text-xs text-muted-foreground">
@@ -1418,17 +1348,19 @@ export default function DashboardClient() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-0.5">
-                {MOCK_TEACHER_ATTENDANCE_PENDING.map((teacher) => (
+              <div className="space-y-1">
+                {teacherAttendancePending.map((teacher) => (
                   <TeacherPendingRow
-                    key={teacher.teacherName}
+                    key={teacher.teacherId}
                     teacherName={teacher.teacherName}
+                    teacherId={teacher.teacherId}
                     pendingSections={teacher.pendingSections}
                     accentBg="bg-amber-100"
                     accentColor="text-amber-700"
                     chipBg="bg-amber-50"
                     chipText="text-amber-700"
                     chipBorder="border-amber-200"
+                    onTeacherClick={(id) => router.push(`/admin/teachers/${id}`)}
                   />
                 ))}
               </div>
@@ -1442,11 +1374,18 @@ export default function DashboardClient() {
               <span className="text-xs font-semibold text-foreground">
                 Diary Pending
               </span>
-              <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 rounded-full px-1.5 py-0.5">
-                {MOCK_TEACHER_DIARY_PENDING.length}
-              </span>
+              {!loadingDiarySummary && (
+                <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 rounded-full px-1.5 py-0.5">
+                  {teacherDiaryPending.length}
+                </span>
+              )}
             </div>
-            {MOCK_TEACHER_DIARY_PENDING.length === 0 ? (
+            {loadingDiarySummary ? (
+              <div className="space-y-2 py-2">
+                <SkeletonBar className="h-8 w-full" />
+                <SkeletonBar className="h-8 w-3/4" />
+              </div>
+            ) : teacherDiaryPending.length === 0 ? (
               <div className="text-center py-4">
                 <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
                 <p className="text-xs text-muted-foreground">
@@ -1454,17 +1393,19 @@ export default function DashboardClient() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-0.5">
-                {MOCK_TEACHER_DIARY_PENDING.map((teacher) => (
+              <div className="space-y-1">
+                {teacherDiaryPending.map((teacher) => (
                   <TeacherPendingRow
-                    key={teacher.teacherName}
+                    key={teacher.teacherId}
                     teacherName={teacher.teacherName}
+                    teacherId={teacher.teacherId}
                     pendingSections={teacher.pendingSections}
                     accentBg="bg-blue-100"
                     accentColor="text-blue-700"
                     chipBg="bg-blue-50"
                     chipText="text-blue-700"
                     chipBorder="border-blue-200"
+                    onTeacherClick={(id) => router.push(`/admin/teachers/${id}?tab=diary`)}
                   />
                 ))}
               </div>

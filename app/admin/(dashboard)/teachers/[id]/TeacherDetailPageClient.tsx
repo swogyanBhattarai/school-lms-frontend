@@ -73,7 +73,11 @@ import {
   TabsTrigger,
 } from "@/app/_components/ui/tabs";
 
-export default function TeacherDetailPageClient() {
+export default function TeacherDetailPageClient({
+  initialTab,
+}: {
+  initialTab?: string;
+}) {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
@@ -90,7 +94,7 @@ export default function TeacherDetailPageClient() {
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
   const [isQuickOverviewFilter, setIsQuickOverviewFilter] = useState(false);
-  const [activeTab, setActiveTab] = useState("attendance");
+  const [activeTab, setActiveTab] = useState(initialTab === "diary" ? "diary" : "attendance");
 
   // Attendance date filter — defaults to today like section diary page
   const [selectedDate, setSelectedDate] = useState<string>(getTodayADString());

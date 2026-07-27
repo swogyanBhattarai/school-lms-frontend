@@ -778,3 +778,52 @@ export interface FeeTypeStatResponse {
   overdueAmount: number;
 }
 
+// --- Attendance Dashboard DTOs ---
+export interface AttendanceDashboardStats {
+  totalClassAssignments: number;
+  completedAttendance: number;
+  avgStudentAttendancePercent: number;
+}
+
+export interface AttendanceTeacherSummary {
+  teacherId: number;
+  teacherName: string;
+  grade: string;
+  sectionId: number;
+  sectionName: string;
+  subjectId: number;
+  subjectName: string;
+  attendanceCompleted: boolean;
+}
+
+// --- Student Dashboard DTOs ---
+export interface StudentWithoutParents {
+  studentWithoutParentCount: number;
+}
+
+// --- Diary Dashboard DTOs ---
+export interface DiaryDashboardStats {
+  totalClassAssignments: number;
+  totalTeachers: number;
+  totalDiaryAdded: number;
+}
+
+export interface DiaryTeacherSummary {
+  teacherId: number;
+  teacherName: string;
+  grade: string;
+  sectionId: number;
+  sectionName: string;
+  subjectId: number;
+  subjectName: string;
+  diaryCreated: boolean;
+}
+
+// --- StudentFee Dashboard DTOs ---
+export interface RecentStudentFee {
+  studentId: number;
+  studentName: string;
+  amountPaid: number;
+  paidAt: string;
+}
+

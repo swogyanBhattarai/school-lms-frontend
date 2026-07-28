@@ -1323,7 +1323,7 @@ export default function DashboardClient() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
           {/* Attendance Pending Column */}
-          <div className="px-4 sm:px-5 py-3">
+          <div className="flex flex-col px-4 sm:px-5 py-3">
             <div className="flex items-center gap-1.5 mb-2.5">
               <ClipboardList className="h-3.5 w-3.5 text-amber-600" />
               <span className="text-xs font-semibold text-foreground">
@@ -1341,11 +1341,13 @@ export default function DashboardClient() {
                 <SkeletonBar className="h-8 w-3/4" />
               </div>
             ) : teacherAttendancePending.length === 0 ? (
-              <div className="text-center py-4">
-                <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
-                <p className="text-xs text-muted-foreground">
-                  All attendance marked
-                </p>
+              <div className="flex-1 flex items-center justify-center py-2">
+                <div className="text-center">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
+                  <p className="text-xs text-muted-foreground">
+                    All attendance marked
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="space-y-1">
@@ -1368,7 +1370,7 @@ export default function DashboardClient() {
           </div>
 
           {/* Diary Pending Column */}
-          <div className="px-4 sm:px-5 py-3">
+          <div className="flex flex-col px-4 sm:px-5 py-3">
             <div className="flex items-center gap-1.5 mb-2.5">
               <ClipboardCheck className="h-3.5 w-3.5 text-blue-600" />
               <span className="text-xs font-semibold text-foreground">
@@ -1386,11 +1388,13 @@ export default function DashboardClient() {
                 <SkeletonBar className="h-8 w-3/4" />
               </div>
             ) : teacherDiaryPending.length === 0 ? (
-              <div className="text-center py-4">
-                <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
-                <p className="text-xs text-muted-foreground">
-                  All diary entries posted
-                </p>
+              <div className="flex-1 flex items-center justify-center py-2">
+                <div className="text-center">
+                  <CheckCircle2 className="h-6 w-6 text-emerald-400 mx-auto mb-1" />
+                  <p className="text-xs text-muted-foreground">
+                    All diary entries posted
+                  </p>
+                </div>
               </div>
             ) : (
               <div className="space-y-1">

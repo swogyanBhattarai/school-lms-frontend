@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import {
   Calendar,
   ChevronDown,
@@ -353,6 +353,63 @@ function PaymentTypeBadge({ type }: { type: PaymentType }) {
   );
 }
 
+/** Minimal pulsing bar used for loading skeletons (same pattern as dashboard). */
+function SkeletonBar({ className }: { className?: string }) {
+  return (
+    <div className={cn("bg-slate-200 rounded animate-pulse", className)} />
+  );
+}
+
+/**
+ * Animated progress bar matching the dashboard's AnimatedProgressBar pattern.
+ * Uses requestAnimationFrame with ease-out cubic (800ms).
+ * Animation starts when the component mounts — so when placed inside
+ * a Radix TabsContent, it fires exactly when the user opens that tab.
+ */
+function AnimatedBar({ percentage }: { percentage: number }) {
+  const [width, setWidth] = useState(0);
+  const animationRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const targetValue = Math.min(Math.max(percentage, 0), 100);
+    const duration = 800;
+    const startTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setWidth(targetValue * eased);
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setWidth(targetValue);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+    return () => {
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    };
+  }, [percentage]);
+
+  const barColor =
+    percentage >= 75
+      ? "bg-emerald-500"
+      : percentage >= 60
+        ? "bg-amber-500"
+        : "bg-red-500";
+
+  return (
+    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+      <div
+        className={cn("h-full rounded-full transition-colors duration-500", barColor)}
+        style={{ width: `${width}%` }}
+      />
+    </div>
+  );
+}
+
 export default function StudentDetailPageClient({
   initialTab,
 }: {
@@ -643,7 +700,7 @@ export default function StudentDetailPageClient({
   const subjectCount = subjectOptions.length;
 
   // Fee queries
-  const { data: fees = [] } = useQuery({
+  const { data: fees = [], isLoading: isFeesLoading } = useQuery({
     queryKey: [
       ...studentFeeKeys.byStudent(studentId),
       selectedFeeAcademicYearId,
@@ -1315,10 +1372,19 @@ export default function StudentDetailPageClient({
                 Subjects
               </span>
             </div>
-            <p className="text-lg sm:text-xl font-bold">{subjectCount}</p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-              Enrolled
-            </p>
+            {isClassAssignmentsLoading ? (
+              <div className="space-y-1.5">
+                <SkeletonBar className="h-7 sm:h-8 w-16" />
+                <SkeletonBar className="h-3 w-14" />
+              </div>
+            ) : (
+              <>
+                <p className="text-lg sm:text-xl font-bold">{subjectCount}</p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                  Enrolled
+                </p>
+              </>
+            )}
           </div>
           <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all">
             <div className="flex items-center gap-1.5 sm:gap-2 text-emerald-600 mb-1.5 sm:mb-2">
@@ -1327,31 +1393,47 @@ export default function StudentDetailPageClient({
                 Attendance
               </span>
             </div>
-            <p className="text-lg sm:text-xl font-bold">
-              {isAttendanceSummaryLoading
-                ? "..."
-                : hasAttendanceData
-                  ? `${attendanceStats.percentage}%`
-                  : "—"}
-            </p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-              {attendanceStats.present}/{attendanceStats.total} days present
-            </p>
+            {isAttendanceSummaryLoading ? (
+              <div className="space-y-1.5">
+                <SkeletonBar className="h-7 sm:h-8 w-20" />
+                <SkeletonBar className="h-3 w-24" />
+              </div>
+            ) : (
+              <>
+                <p className="text-lg sm:text-xl font-bold">
+                  {hasAttendanceData
+                    ? `${attendanceStats.percentage}%`
+                    : "—"}
+                </p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                  {attendanceStats.present}/{attendanceStats.total} days present
+                </p>
+              </>
+            )}
           </div>
           <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all">
             <div className="flex items-center gap-1.5 sm:gap-2 text-amber-600 mb-1.5 sm:mb-2">
               <NepaliRupee className="h-3.5 w-3.5" />
               <span className="text-[10px] sm:text-xs font-medium">Fees</span>
             </div>
-            <p className="text-lg sm:text-xl font-bold">
-              {feeStats.totalRemaining > 0
-                ? formatCurrency(feeStats.totalRemaining)
-                : "Paid"}
-            </p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-              {formatCurrency(feeStats.totalPaid)} paid of{" "}
-              {formatCurrency(feeStats.totalExpected)}
-            </p>
+            {isFeesLoading ? (
+              <div className="space-y-1.5">
+                <SkeletonBar className="h-7 sm:h-8 w-20" />
+                <SkeletonBar className="h-3 w-28" />
+              </div>
+            ) : (
+              <>
+                <p className="text-lg sm:text-xl font-bold">
+                  {feeStats.totalRemaining > 0
+                    ? formatCurrency(feeStats.totalRemaining)
+                    : "Paid"}
+                </p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                  {formatCurrency(feeStats.totalPaid)} paid of{" "}
+                  {formatCurrency(feeStats.totalExpected)}
+                </p>
+              </>
+            )}
           </div>
           <div className="rounded-xl sm:rounded-2xl border border-slate-200/80 bg-white p-3 sm:p-4 hover:shadow-md transition-all">
             <div className="flex items-center gap-1.5 sm:gap-2 text-blue-600 mb-1.5 sm:mb-2">
@@ -1360,12 +1442,21 @@ export default function StudentDetailPageClient({
                 Parents
               </span>
             </div>
-            <p className="text-lg sm:text-xl font-bold">
-              {editedParents.length}
-            </p>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
-              Guardians
-            </p>
+            {isStudentLoading ? (
+              <div className="space-y-1.5">
+                <SkeletonBar className="h-7 sm:h-8 w-12" />
+                <SkeletonBar className="h-3 w-14" />
+              </div>
+            ) : (
+              <>
+                <p className="text-lg sm:text-xl font-bold">
+                  {editedParents.length}
+                </p>
+                <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                  Guardians
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -2061,19 +2152,7 @@ export default function StudentDetailPageClient({
                                   {subject.percentage}%
                                 </span>
                               </div>
-                              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div
-                                  className={cn(
-                                    "h-full rounded-full transition-all",
-                                    subject.percentage >= 75
-                                      ? "bg-emerald-500"
-                                      : subject.percentage >= 60
-                                        ? "bg-amber-500"
-                                        : "bg-red-500",
-                                  )}
-                                  style={{ width: `${subject.percentage}%` }}
-                                />
-                              </div>
+                              <AnimatedBar percentage={subject.percentage} />
                             </div>
                           ))}
                         </div>

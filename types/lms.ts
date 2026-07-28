@@ -829,14 +829,60 @@ export interface RecentStudentFee {
 }
 
 // --- Notification DTOs ---
+
+/** Maps to the backend NOTIFICATION_TYPE enum. */
 export type NOTIFICATION_TYPE = 'STUDENT_ATTENDANCE' | 'MASS_ATTENDANCE' | 'NOTICE';
 
-export interface NotificationResponse {
+/** Fields shared by every notification, regardless of type. */
+export interface NotificationCommon {
   notificationId: number;
-  notificationType: NOTIFICATION_TYPE;
-  referenceId: number;
   title: string;
-  message: string;
   createdAt: string;
 }
+
+/**
+ * Payload for MASS_ATTENDANCE notifications.
+ * Returned when an admin or teacher marks attendance for a whole section.
+ */
+export interface AdminAttendanceData {
+  subjectId: number;
+  subjectName: string;
+  sectionId: number;
+  sectionName: string;
+  grade: string;
+  teacherId: number;
+  teacherName: string;
+  totalStudents: number;
+  presentStudents: number;
+  absentStudents: number;
+  leaveStudents: number;
+}
+
+/**
+ * Payload for STUDENT_ATTENDANCE notifications.
+ * Returned when a student's attendance is recorded (parent-facing).
+ */
+export interface ParentAttendanceData {
+  studentId: number;
+  studentName: string;
+  attendanceStatus: AttendanceStatus;
+  subjectName: string;
+}
+
+/**
+ * Discriminated union — the shape of `data` depends on `notificationType`.
+ *
+ * Usage:
+ * ```ts
+ * if (n.notificationType === 'MASS_ATTENDANCE') {
+ *   // n.data is narrowed to AdminAttendanceData
+ *   console.log(n.data.subjectName);
+ * }
+ * ```
+ */
+export type NotificationResponse = NotificationCommon & (
+  | { notificationType: 'MASS_ATTENDANCE';  data: AdminAttendanceData }
+  | { notificationType: 'STUDENT_ATTENDANCE'; data: ParentAttendanceData }
+  | { notificationType: 'NOTICE' }
+);
 

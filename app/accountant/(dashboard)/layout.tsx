@@ -1,6 +1,7 @@
 "use client";
 import { ReactNode, useState, useEffect } from "react";
 import { UserProvider } from "@/lib/contexts/UserContext";
+import { WebSocketProvider } from "@/lib/contexts/WebSocketContext";
 import Topbar from "@/app/_components/Topbar";
 import { AccountantSidebar } from "@/app/_components/accountant/AccountantSidebar";
 
@@ -21,8 +22,9 @@ export default function AccountantLayout({ children }: { children: ReactNode }) 
   }, [sidebarOpen]);
 
   return (
-    <UserProvider>
-      <div className="flex h-dvh overflow-hidden bg-background">
+      <UserProvider>
+        <WebSocketProvider>
+        <div className="flex h-dvh overflow-hidden bg-background">
         <AccountantSidebar
           open={sidebarOpen}
           collapsed={sidebarCollapsed}
@@ -37,7 +39,8 @@ export default function AccountantLayout({ children }: { children: ReactNode }) 
             </div>
           </main>
         </div>
-      </div>
-    </UserProvider>
+        </div>
+        </WebSocketProvider>
+      </UserProvider>
   );
 }

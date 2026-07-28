@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import AdminSidebar from "@/app/_components/AdminSidebar";
 import Topbar from "@/app/_components/Topbar";
 import { UserProvider } from "@/lib/contexts/UserContext";
+import { WebSocketProvider } from "@/lib/contexts/WebSocketContext";
 
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -29,6 +30,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   
     return (
       <UserProvider>
+        <WebSocketProvider>
         <div className="flex h-dvh overflow-hidden bg-background">
           <AdminSidebar
             open={sidebarOpen}
@@ -45,6 +47,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </main>
           </div>
         </div>
+        </WebSocketProvider>
       </UserProvider>
     );
 }

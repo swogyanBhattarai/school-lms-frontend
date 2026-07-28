@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { WebSocketProvider } from "@/lib/contexts/WebSocketContext";
 import NotificationsPage from "@/app/_components/NotificationsPage";
 
 export default function ParentNotifications() {
@@ -25,7 +26,9 @@ export default function ParentNotifications() {
 
       {/* Content */}
       <div className="mx-auto max-w-2xl px-4 py-6">
-        <NotificationsPage hideHeader />
+        <WebSocketProvider>
+          <NotificationsPage hideHeader />
+        </WebSocketProvider>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   BellOff,
@@ -8,12 +8,24 @@ import {
   Users,
   AlertTriangle,
   Clock,
-  ChevronRight,
+  X,
+  CheckCheck,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { getUnreadNotifications } from "@/lib/api/notification";
+import { cn, getApiErrorMessage } from "@/lib/utils";
+import {
+  getUnreadNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+} from "@/lib/api/notification";
 import { notificationKeys } from "@/lib/api/hooks/notification";
-import type { NotificationResponse, NOTIFICATION_TYPE } from "@/types/lms";
+import type {
+  NotificationResponse,
+  NOTIFICATION_TYPE,
+  AdminAttendanceData,
+  ParentAttendanceData,
+} from "@/types/lms";
+import { toast } from "@/app/_components/ui/use-toast";
+import { Button } from "@/app/_components/ui/button";
 
 const TYPE_CONFIG: Record<
   NOTIFICATION_TYPE,
@@ -39,12 +51,37 @@ const TYPE_CONFIG: Record<
   },
 };
 
-function NotificationCard({ notification }: { notification: NotificationResponse }) {
-  const config = TYPE_CONFIG[notification.notificationType] ?? TYPE_CONFIG.NOTICE;
+function getNotificationDescription(
+  notification: NotificationResponse,
+): string | undefined {
+  switch (notification.notificationType) {
+    case "MASS_ATTENDANCE": {
+      const d = notification.data;
+      return `${d.teacherName} marked attendance for ${d.grade} — ${d.sectionName} (${d.subjectName}): ${d.presentStudents} present, ${d.absentStudents} absent, ${d.leaveStudents} leave`;
+    }
+    case "STUDENT_ATTENDANCE": {
+      const d = notification.data;
+      return `${d.studentName} was marked ${d.attendanceStatus.toLowerCase()} in ${d.subjectName}`;
+    }
+    case "NOTICE":
+      return undefined;
+  }
+}
+
+function NotificationCard({
+  notification,
+  onMarkRead,
+}: {
+  notification: NotificationResponse;
+  onMarkRead: (id: number) => void;
+}) {
+  const config =
+    TYPE_CONFIG[notification.notificationType] ?? TYPE_CONFIG.NOTICE;
   const Icon = config.icon;
+  const description = getNotificationDescription(notification);
 
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:shadow-md">
+    <div className="group relative flex items-start gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm transition-all hover:shadow-md">
       <div
         className={cn(
           "flex h-9 w-9 items-center justify-center rounded-lg flex-shrink-0",
@@ -68,9 +105,11 @@ function NotificationCard({ notification }: { notification: NotificationResponse
             {config.label}
           </span>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
-          {notification.message}
-        </p>
+        {description && (
+          <p className="mt-1 text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+            {description}
+          </p>
+        )}
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground">
           <Clock className="h-3 w-3" />
           {new Date(notification.createdAt).toLocaleDateString("en-US", {
@@ -82,26 +121,102 @@ function NotificationCard({ notification }: { notification: NotificationResponse
           })}
         </p>
       </div>
+
+      {/* Mark as read button */}
+      <button
+        onClick={() => onMarkRead(notification.notificationId)}
+        className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-slate-100 text-muted-foreground hover:text-foreground"
+        aria-label="Mark as read"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
 
-export default function NotificationsPage({ hideHeader }: { hideHeader?: boolean }) {
-  const { data: notifications = [], isLoading, isError, error } = useQuery({
+export default function NotificationsPage({
+  hideHeader,
+}: {
+  hideHeader?: boolean;
+}) {
+  const queryClient = useQueryClient();
+
+  const {
+    data: notifications = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: notificationKeys.unread,
     queryFn: getUnreadNotifications,
   });
 
+  const markReadMutation = useMutation({
+    mutationFn: (notificationId: number) =>
+      markNotificationAsRead(notificationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to mark as read",
+        description: getApiErrorMessage(err, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const markAllReadMutation = useMutation({
+    mutationFn: markAllNotificationsAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      toast({
+        title: "All notifications marked as read",
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Failed to mark all as read",
+        description: getApiErrorMessage(err, "Please try again."),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleMarkRead = (notificationId: number) => {
+    markReadMutation.mutate(notificationId);
+  };
+
+  const handleMarkAllRead = () => {
+    markAllReadMutation.mutate();
+  };
+
   return (
     <div className="space-y-6">
       {!hideHeader && (
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            Notifications
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Stay updated with the latest activity.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Notifications
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Stay updated with the latest activity.
+            </p>
+          </div>
+
+          {/* Mark all as read button */}
+          {notifications.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleMarkAllRead}
+              disabled={markAllReadMutation.isPending}
+              className="gap-1.5"
+            >
+              <CheckCheck className="h-4 w-4" />
+              Mark all as read
+            </Button>
+          )}
         </div>
       )}
 
@@ -131,7 +246,9 @@ export default function NotificationsPage({ hideHeader }: { hideHeader?: boolean
             Failed to load notifications
           </h3>
           <p className="mt-1 text-sm text-red-500">
-            {error instanceof Error ? error.message : "Please try again later."}
+            {error instanceof Error
+              ? error.message
+              : "Please try again later."}
           </p>
         </div>
       ) : notifications.length === 0 ? (
@@ -145,15 +262,26 @@ export default function NotificationsPage({ hideHeader }: { hideHeader?: boolean
           </p>
         </div>
       ) : (
-        /* Notification list */
-        <div className="space-y-3">
-          {notifications.map((notification) => (
-            <NotificationCard
-              key={notification.notificationId}
-              notification={notification}
-            />
-          ))}
-        </div>
+        <>
+          {/* Unread count summary */}
+          {!hideHeader && (
+            <p className="text-sm text-muted-foreground">
+              {notifications.length} unread notification
+              {notifications.length !== 1 ? "s" : ""}
+            </p>
+          )}
+
+          {/* Notification list */}
+          <div className="space-y-3">
+            {notifications.map((notification) => (
+              <NotificationCard
+                key={notification.notificationId}
+                notification={notification}
+                onMarkRead={handleMarkRead}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

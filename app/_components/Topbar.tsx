@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   ChevronRight,
@@ -18,6 +19,8 @@ import { Button } from "@/app/_components/ui/button";
 import { Badge } from "@/app/_components/ui/badge";
 import { useUser } from "@/lib/contexts/UserContext";
 import { useWebSocket } from "@/lib/contexts/WebSocketContext";
+import { getUnreadNotificationCount } from "@/lib/api/notification";
+import { notificationKeys } from "@/lib/api/hooks/notification";
 import type { NotificationResponse, NOTIFICATION_TYPE } from "@/types/lms";
 import {
   DropdownMenu,
@@ -103,10 +106,22 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useUser();
-  const { unreadCount, latestNotifications, resetUnreadCount } = useWebSocket();
+  const { latestNotifications } = useWebSocket();
   const username = user?.username || "";
   const userRole = user?.userRole || "";
   const roleBadgeClasses = getRoleBadgeClasses(userRole);
+
+  const { data: unreadCount = 0, refetch: refetchUnreadCount } = useQuery({
+    queryKey: notificationKeys.unreadCount,
+    queryFn: getUnreadNotificationCount,
+  });
+
+  // Refetch unread count when a new WebSocket notification arrives
+  useEffect(() => {
+    if (latestNotifications.length > 0) {
+      refetchUnreadCount();
+    }
+  }, [latestNotifications.length, refetchUnreadCount]);
 
   const crumbs = useMemo(() => {
     if (pathname === "/") return [{ label: "Dashboard", to: undefined }];
@@ -230,7 +245,6 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              onClick={() => resetUnreadCount()}
               className={cn(
                 "group relative flex items-center gap-2 h-9 rounded-lg transition-all duration-200",
                 "hover:bg-muted/80 active:scale-[0.97]",

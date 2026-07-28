@@ -18,6 +18,7 @@ import {
   markAllNotificationsAsRead,
 } from "@/lib/api/notification";
 import { notificationKeys } from "@/lib/api/hooks/notification";
+import { useWebSocket } from "@/lib/contexts/WebSocketContext";
 import type {
   NotificationResponse,
   NOTIFICATION_TYPE,
@@ -140,6 +141,7 @@ export default function NotificationsPage({
   hideHeader?: boolean;
 }) {
   const queryClient = useQueryClient();
+  const { clearNotifications } = useWebSocket();
 
   const {
     data: notifications = [],
@@ -156,6 +158,7 @@ export default function NotificationsPage({
       markNotificationAsRead(notificationId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      clearNotifications();
     },
     onError: (err) => {
       toast({
@@ -170,6 +173,7 @@ export default function NotificationsPage({
     mutationFn: markAllNotificationsAsRead,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+      clearNotifications();
       toast({
         title: "All notifications marked as read",
       });

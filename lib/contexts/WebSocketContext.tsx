@@ -15,18 +15,20 @@ import type { NotificationResponse } from "@/types/lms";
 
 type WebSocketContextType = {
   isConnected: boolean;
-  unreadCount: number;
   latestNotifications: NotificationResponse[];
-  resetUnreadCount: () => void;
+  clearNotifications: () => void;
 };
 
-const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined);
+const WebSocketContext = createContext<WebSocketContextType | undefined>(
+  undefined,
+);
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const clientRef = useRef<Client | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [latestNotifications, setLatestNotifications] = useState<NotificationResponse[]>([]);
+  const [latestNotifications, setLatestNotifications] = useState<
+    NotificationResponse[]
+  >([]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -34,10 +36,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const token = getAccessToken();
     if (!token) return;
 
-    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
     const wsBase = apiBase.replace(/^http/, "ws");
     const brokerURL = `${wsBase}/ws`;
-
+    
     const client = new Client({
       brokerURL,
       connectHeaders: {
@@ -51,8 +54,9 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           try {
             const notification: NotificationResponse = JSON.parse(message.body);
 
-            setLatestNotifications((prev) => [notification, ...prev].slice(0, 50));
-            setUnreadCount((prev) => prev + 1);
+            setLatestNotifications((prev) =>
+              [notification, ...prev].slice(0, 50),
+            );
           } catch {
             // Ignore malformed messages
           }
@@ -75,13 +79,13 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const resetUnreadCount = useCallback(() => {
-    setUnreadCount(0);
+  const clearNotifications = useCallback(() => {
+    setLatestNotifications([]);
   }, []);
 
   return (
     <WebSocketContext.Provider
-      value={{ isConnected, unreadCount, latestNotifications, resetUnreadCount }}
+      value={{ isConnected, latestNotifications, clearNotifications }}
     >
       {children}
     </WebSocketContext.Provider>

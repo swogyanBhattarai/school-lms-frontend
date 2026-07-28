@@ -143,7 +143,18 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
               </span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs text-center text-primary font-medium justify-center">
+            <DropdownMenuItem
+              className="text-xs text-center text-primary font-medium justify-center cursor-pointer"
+              onSelect={() => {
+                const base =
+                  userRole === "ADMIN"
+                    ? "/admin"
+                    : userRole === "TEACHER"
+                      ? "/teacher"
+                      : "/accountant";
+                router.push(`${base}/notifications`);
+              }}
+            >
               View all notifications
             </DropdownMenuItem>
           </DropdownMenuContent>

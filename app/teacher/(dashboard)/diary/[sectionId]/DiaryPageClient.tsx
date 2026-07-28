@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Calendar, Save, FileText } from "lucide-react";
@@ -11,8 +11,8 @@ import { cn, getApiErrorMessage } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 
 import { getClassAssignmentsByTeacherId } from "@/lib/api/teacher";
-import { createDiary } from "@/lib/api/diary";
-import type { DiaryCreate } from "@/types/lms";
+import { createDiary, updateDiary, findAllFiltered } from "@/lib/api/diary";
+import type { DiaryCreate, DiaryUpdate } from "@/types/lms";
 
 export default function DiaryPageClient({
   initialSubjectId,
@@ -25,9 +25,11 @@ export default function DiaryPageClient({
 
   const sectionId = parseInt(params.sectionId as string);
   const subjectId = parseInt(initialSubjectId || "0");
+  const todayStr = new Date().toISOString().split("T")[0];
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [existingDiaryId, setExistingDiaryId] = useState<number | null>(null);
 
   // Fetch class assignments to get assignment details + teacherId
   const { data: assignments = [], isLoading: loadingAssignment } = useQuery({
@@ -39,6 +41,35 @@ export default function DiaryPageClient({
     (a) => a.sectionId === sectionId && a.subjectId === subjectId,
   );
 
+  // Fetch existing diary for today
+  const { data: diaryResponse } = useQuery({
+    queryKey: ["teacher-diary-today", sectionId, subjectId],
+    queryFn: () =>
+      findAllFiltered({
+        sectionId,
+        subjectId,
+        teacherId: assignment?.teacherId,
+        startDate: todayStr,
+        endDate: todayStr,
+        pageSize: 1,
+        pageNum: 1,
+      }),
+    enabled: !!assignment?.teacherId,
+  });
+
+  // Pre-fill form when diary data arrives
+  useEffect(() => {
+    const entries = diaryResponse?.content ?? [];
+    if (entries.length > 0) {
+      const entry = entries[0];
+      setTitle(entry.title);
+      setContent(entry.content);
+      setExistingDiaryId(entry.diaryId);
+    }
+  }, [diaryResponse]);
+
+  const isEditing = existingDiaryId !== null;
+
   const today = new Date().toLocaleDateString("en-NP", {
     weekday: "long",
     month: "long",
@@ -47,7 +78,7 @@ export default function DiaryPageClient({
   });
 
   // Diary creation mutation
-  const diaryMutation = useMutation({
+  const createMutation = useMutation({
     mutationFn: (payload: DiaryCreate) => createDiary(payload),
     onSuccess: () => {
       toast({
@@ -65,17 +96,49 @@ export default function DiaryPageClient({
     },
   });
 
+  // Diary update mutation
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: DiaryUpdate }) =>
+      updateDiary(id, payload),
+    onSuccess: () => {
+      toast({
+        title: "Diary updated",
+        description: "Your diary entry has been updated.",
+      });
+      router.push("/teacher");
+    },
+    onError: (error: unknown) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to update diary",
+        description: getApiErrorMessage(error, "Please try again."),
+      });
+    },
+  });
+
+  const isPending = createMutation.isPending || updateMutation.isPending;
+
   const handleSubmit = () => {
     if (!title.trim() || !content.trim()) return;
 
-    diaryMutation.mutate({
-      diaryDate: new Date().toISOString().split("T")[0],
-      subjectId,
-      teacherId: assignment!.teacherId,
-      sectionId,
-      title: title.trim(),
-      content: content.trim(),
-    });
+    if (isEditing && existingDiaryId) {
+      updateMutation.mutate({
+        id: existingDiaryId,
+        payload: {
+          title: title.trim(),
+          content: content.trim(),
+        },
+      });
+    } else {
+      createMutation.mutate({
+        diaryDate: todayStr,
+        subjectId,
+        teacherId: assignment!.teacherId,
+        sectionId,
+        title: title.trim(),
+        content: content.trim(),
+      });
+    }
   };
 
   const canSave = title.trim().length > 0 && content.trim().length > 0;
@@ -94,7 +157,7 @@ export default function DiaryPageClient({
         </Button>
         <div>
           <h1 className="text-lg sm:text-2xl font-bold tracking-tight">
-            New Diary Entry
+            {isEditing ? "Edit Diary Entry" : "New Diary Entry"}
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground flex items-center gap-1.5">
             <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -184,9 +247,6 @@ export default function DiaryPageClient({
                   "resize-y min-h-[200px]",
                 )}
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                {content.length} character{content.length !== 1 ? "s" : ""}
-              </p>
             </div>
           </div>
 
@@ -201,10 +261,10 @@ export default function DiaryPageClient({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={!canSave || diaryMutation.isPending}
+              disabled={!canSave || isPending}
               className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white"
             >
-              {diaryMutation.isPending ? (
+              {isPending ? (
                 <span className="flex items-center gap-2">
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Saving...
@@ -212,7 +272,7 @@ export default function DiaryPageClient({
               ) : (
                 <span className="flex items-center gap-2">
                   <Save className="h-4 w-4" />
-                  Save Diary
+                  {isEditing ? "Update Diary" : "Save Diary"}
                 </span>
               )}
             </Button>

@@ -1,24 +1,26 @@
-import AdminAttendancePageClient from "./AdminAttendancePageClient";
+import AdminDiaryPageClient from "./AdminDiaryPageClient";
 
-export default async function AdminAttendancePage({
+export default async function AdminDiaryPage({
   searchParams,
 }: {
   searchParams: Promise<{
     subjectId?: string;
     teacherId?: string;
-    attendanceDate?: string;
+    diaryDate?: string;
     subjectName?: string;
     teacherName?: string;
+    grade?: string;
   }>;
 }) {
   const params = await searchParams;
   return (
-    <AdminAttendancePageClient
+    <AdminDiaryPageClient
       initialSubjectId={params.subjectId}
       initialTeacherId={params.teacherId}
-      initialAttendanceDate={params.attendanceDate}
+      initialDiaryDate={params.diaryDate}
       initialSubjectName={params.subjectName}
       initialTeacherName={params.teacherName}
+      initialGrade={params.grade}
     />
   );
 }

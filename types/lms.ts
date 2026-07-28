@@ -37,6 +37,7 @@ export interface ClassAssignmentAttendanceResponse {
   academicYear: string;
   studentCount: number;
   attendanceCompleted: boolean;
+  diaryCreated: boolean;
 }
 
 // --- ClassAssignment Model ---
@@ -825,5 +826,17 @@ export interface RecentStudentFee {
   studentName: string;
   amountPaid: number;
   paidAt: string;
+}
+
+// --- Notification DTOs ---
+export type NOTIFICATION_TYPE = 'STUDENT_ATTENDANCE' | 'MASS_ATTENDANCE' | 'NOTICE';
+
+export interface NotificationResponse {
+  notificationId: number;
+  notificationType: NOTIFICATION_TYPE;
+  referenceId: number;
+  title: string;
+  message: string;
+  createdAt: string;
 }
 

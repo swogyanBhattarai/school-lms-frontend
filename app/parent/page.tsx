@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { GraduationCap, ChevronRight, Users, Loader2 } from "lucide-react";
+import { Bell, GraduationCap, ChevronRight, Users, Loader2 } from "lucide-react";
 import { me } from "@/lib/api/auth";
 import api from "@/lib/api";
 import type { CurrentUserInfoResponse } from "@/types/lms";
@@ -112,12 +112,18 @@ export default function ParentDashboard() {
           <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center">
             <GraduationCap className="w-7 h-7 text-white" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900">My Children</h1>
             <p className="text-sm text-muted-foreground">
               Welcome, {parentName}
             </p>
           </div>
+          <Link
+            href="/parent/notifications"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm border border-slate-200 hover:bg-slate-50 transition-colors"
+          >
+            <Bell className="h-5 w-5 text-slate-600" />
+          </Link>
         </div>
 
         {/* Children list */}

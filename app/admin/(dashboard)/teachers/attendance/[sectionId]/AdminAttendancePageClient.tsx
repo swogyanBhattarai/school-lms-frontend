@@ -99,10 +99,14 @@ export default function AdminAttendancePageClient({
   initialSubjectId,
   initialTeacherId,
   initialAttendanceDate,
+  initialSubjectName,
+  initialTeacherName,
 }: {
   initialSubjectId?: string;
   initialTeacherId?: string;
   initialAttendanceDate?: string;
+  initialSubjectName?: string;
+  initialTeacherName?: string;
 }) {
   const router = useRouter();
   const params = useParams();
@@ -328,8 +332,17 @@ export default function AdminAttendancePageClient({
             </span>
             <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
             <span className="flex items-center gap-1.5">
-              Teacher ID: {teacherId}
+              {initialTeacherName || `Teacher ID: ${teacherId}`}
             </span>
+            {initialSubjectName && (
+              <>
+                <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                <span className="flex items-center gap-1.5">
+                  <BookOpen className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                  {initialSubjectName}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>

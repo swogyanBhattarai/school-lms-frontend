@@ -310,14 +310,16 @@ export default function TeacherDetailPageClient({
     return Array.from(grouped.entries());
   }, [classAssignments]);
 
-  const handleAssignmentClick = (sectionId: number, subjectId: number) => {
+  const handleAssignmentClick = (sectionId: number, subjectId: number, subjectName?: string) => {
     router.push(
-      `/admin/teachers/attendance/${sectionId}?subjectId=${subjectId}&teacherId=${parsedTeacherId}&attendanceDate=${selectedDate}`,
+      `/admin/teachers/attendance/${sectionId}?subjectId=${subjectId}&teacherId=${parsedTeacherId}&attendanceDate=${selectedDate}&subjectName=${encodeURIComponent(subjectName ?? "")}&teacherName=${encodeURIComponent(teacherDisplayName)}`,
     );
   };
 
-  const handleDiaryClick = (sectionId: number, subjectId: number) => {
-    router.push(`/teacher/diary/${sectionId}?subjectId=${subjectId}`);
+  const handleDiaryClick = (sectionId: number, subjectId: number, subjectName?: string, grade?: string) => {
+    router.push(
+      `/admin/teachers/diary/${sectionId}?subjectId=${subjectId}&teacherId=${parsedTeacherId}&diaryDate=${selectedDate}&subjectName=${encodeURIComponent(subjectName ?? "")}&teacherName=${encodeURIComponent(teacherDisplayName)}&grade=${encodeURIComponent(grade ?? "")}`,
+    );
   };
 
   const todayLabel = (() => {
@@ -828,6 +830,7 @@ export default function TeacherDetailPageClient({
                       handleAssignmentClick(
                         assignment.sectionId,
                         assignment.subjectId,
+                        assignment.subjectName,
                       )
                     }
                     className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-white border border-slate-200/80 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer active:scale-[0.99]"
@@ -903,42 +906,157 @@ export default function TeacherDetailPageClient({
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {classAssignments.map((assignment) => (
-                  <div
-                    key={assignment.classAssignmentId}
-                    onClick={() =>
-                      handleDiaryClick(
-                        assignment.sectionId,
-                        assignment.subjectId,
-                      )
-                    }
-                    className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer active:scale-[0.99] group"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200 transition-colors">
-                      <BookOpen className="h-5 w-5 text-indigo-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm truncate">
-                        {assignment.subjectName}
-                      </h4>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{getClassName(assignment)}</span>
-                        <span>•</span>
-                        <span>Section {assignment.sectionName}</span>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="rounded-lg text-indigo-600 font-medium text-xs"
-                    >
-                      View Diary
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
+              <>
+                {/* Filters & Search */}
+                <div className="hidden sm:flex flex-wrap items-center gap-3">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search classes..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-10 h-10 bg-white border-slate-200 text-sm rounded-xl w-full"
+                    />
                   </div>
-                ))}
-              </div>
+                  <MiniCalendar
+                    value={selectedDateBS}
+                    onChange={(date) => setSelectedDate(date)}
+                    placeholder="Select date"
+                    className="w-[160px]"
+                  />
+                  <Select value={gradeFilter} onValueChange={setGradeFilter}>
+                    <SelectTrigger className="h-10 bg-white text-sm rounded-xl w-[140px]">
+                      <GraduationCap className="h-4 w-4 mr-2 shrink-0" />
+                      <SelectValue placeholder="Grade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Grades</SelectItem>
+                      {uniqueGrades.map((grade) => (
+                        <SelectItem key={grade} value={grade}>
+                          Grade {grade}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={sortBy}
+                    onValueChange={(
+                      value: "grade" | "section" | "subject" | "students",
+                    ) => setSortBy(value)}
+                  >
+                    <SelectTrigger className="h-10 bg-white text-sm rounded-xl w-[140px]">
+                      <ArrowUpDown className="h-4 w-4 mr-2 shrink-0" />
+                      <SelectValue placeholder="Sort" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="grade">Grade</SelectItem>
+                      <SelectItem value="section">Section</SelectItem>
+                      <SelectItem value="subject">Subject</SelectItem>
+                      <SelectItem value="students">Students</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <ClearFiltersButton
+                    activeFiltersCount={activeFiltersCount}
+                    onClick={clearFilters}
+                  />
+                </div>
+                {/* Mobile filter bar */}
+                <MobileFilterBar
+                  searchValue={search}
+                  onSearchChange={setSearch}
+                  searchPlaceholder="Search classes..."
+                  datePicker={
+                    <MiniCalendar
+                      value={selectedDateBS}
+                      onChange={(date) => setSelectedDate(date)}
+                      placeholder="Select date"
+                    />
+                  }
+                  gradeValue={gradeFilter}
+                  onGradeChange={setGradeFilter}
+                  gradeOptions={[
+                    { value: "all", label: "All" },
+                    ...uniqueGrades.map((g) => ({ value: g, label: `Grade ${g}` })),
+                  ]}
+                  sortValue={sortBy}
+                  onSortChange={(v) =>
+                    setSortBy(v as "grade" | "section" | "subject" | "students")
+                  }
+                  sortOptions={[
+                    { value: "grade", label: "Grade" },
+                    { value: "section", label: "Section" },
+                    { value: "subject", label: "Subject" },
+                    { value: "students", label: "Students" },
+                  ]}
+                  activeFiltersCount={activeFiltersCount}
+                  onClearFilters={clearFilters}
+                />
+
+                {/* Diary List */}
+                {filteredAssignments.length === 0 ? (
+                  <div className="text-center py-12 bg-white rounded-2xl border-2 border-dashed border-slate-200">
+                    <PenLine className="h-8 w-8 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm font-medium text-muted-foreground">
+                      No diary entries found
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {filteredAssignments.map((assignment) => (
+                      <div
+                        key={assignment.classAssignmentId}
+                        onClick={() =>
+                          handleDiaryClick(
+                            assignment.sectionId,
+                            assignment.subjectId,
+                            assignment.subjectName,
+                            assignment.grade,
+                          )
+                        }
+                        className="flex items-center gap-3 p-3 sm:p-4 rounded-xl bg-white border border-slate-200/80 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer active:scale-[0.99]"
+                      >
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0",
+                            assignment.diaryCreated
+                              ? "bg-indigo-100"
+                              : "bg-amber-100",
+                          )}
+                        >
+                          {assignment.diaryCreated ? (
+                            <CheckCircle2 className="h-5 w-5 text-indigo-600" />
+                          ) : (
+                            <Clock className="h-5 w-5 text-amber-600" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm truncate">
+                            {assignment.subjectName}
+                          </h4>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>{getClassName(assignment)}</span>
+                            <span>•</span>
+                            <span>Section {assignment.sectionName}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Badge
+                            className={cn(
+                              "text-[10px] border whitespace-nowrap",
+                              assignment.diaryCreated
+                                ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200",
+                            )}
+                          >
+                            {assignment.diaryCreated ? "Done" : "Pending"}
+                          </Badge>
+                          <ChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
         </Tabs>

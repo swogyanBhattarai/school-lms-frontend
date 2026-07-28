@@ -33,11 +33,20 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    console.log("WebSocketContext: running");
+
     const token = getAccessToken();
-    if (!token) return;
+
+    console.log("WebSocketContext: token exists?", !!token);
+
+    if (!token) {
+      console.log("WebSocketContext: NO TOKEN, returning");
+      return;
+    }
 
     const apiBase =
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
+
     const wsBase = apiBase.replace(/^http/, "ws");
     const brokerURL = `${wsBase}/ws`;
 

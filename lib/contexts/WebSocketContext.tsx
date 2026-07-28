@@ -40,7 +40,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8080";
     const wsBase = apiBase.replace(/^http/, "ws");
     const brokerURL = `${wsBase}/ws`;
-    
+
+    console.log("API BASE:", process.env.NEXT_PUBLIC_API_BASE_URL);
+    console.log("WebSocket URL:", brokerURL);
+
     const client = new Client({
       brokerURL,
       connectHeaders: {

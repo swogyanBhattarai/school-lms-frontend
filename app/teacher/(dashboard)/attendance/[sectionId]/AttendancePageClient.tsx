@@ -30,7 +30,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/app/_components/ui/dialog";
-import { cn, getApiErrorMessage } from "@/lib/utils";
+import { cn, getApiErrorMessage, getLocalDateString } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 
 import { getStudents } from "@/lib/api/student";
@@ -167,7 +167,7 @@ export default function AttendancePageClient({
   // Mass Attendance Mutation — teacher always saves for today
   const attendanceMutation = useMutation({
     mutationFn: (payload: MassAttendance) =>
-      createMassAttendance(sectionId, subjectId, payload, new Date().toISOString().split("T")[0]),
+      createMassAttendance(sectionId, subjectId, payload, getLocalDateString()),
     onSuccess: () => {
       toast({
         title: "Attendance Saved",

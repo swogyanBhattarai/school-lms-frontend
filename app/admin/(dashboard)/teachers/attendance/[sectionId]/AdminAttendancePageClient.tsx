@@ -29,7 +29,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/app/_components/ui/dialog";
-import { cn, getApiErrorMessage } from "@/lib/utils";
+import { cn, getApiErrorMessage, getLocalDateString } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 
 import { getStudents } from "@/lib/api/student";
@@ -256,7 +256,7 @@ export default function AdminAttendancePageClient({
   };
 
   const confirmSave = () => {
-    const dateForSave = attendanceDate || new Date().toISOString().split("T")[0];
+    const dateForSave = attendanceDate || getLocalDateString();
     const payload: MassAttendance = {
       studentAttendances: studentStates
         .filter((s) => s.status !== "UNMARKED")

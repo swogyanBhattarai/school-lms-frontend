@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, getLocalDateString } from "@/lib/utils";
 import {
   NEPALI_MONTHS,
   NEPALI_WEEK_DAYS,
@@ -162,7 +162,7 @@ export function MiniCalendar({
     const date = { year, month, day };
     setSelectedDate(date);
     const adDate = convertBSToAD(date.year, date.month, date.day);
-    const isoString = adDate.toISOString().split("T")[0];
+    const isoString = getLocalDateString(adDate);
     onChange?.(isoString);
     setOpen(false);
   };

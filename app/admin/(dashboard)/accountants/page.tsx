@@ -2,6 +2,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getLocalDateString } from "@/lib/utils";
 import {
   Plus,
   Trash2,
@@ -388,7 +389,7 @@ export default function AccountantsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `accountants-export-${new Date().toISOString().split("T")[0]}.json`;
+    a.download = `accountants-export-${getLocalDateString()}.json`;
     a.click();
     URL.revokeObjectURL(url);
 

@@ -7,7 +7,7 @@ import { ArrowLeft, BookOpen, Calendar, FileText, Save, Sparkles, PenLine, Gradu
 
 import { Button } from "@/app/_components/ui/button";
 import { Input } from "@/app/_components/ui/input";
-import { cn, getApiErrorMessage } from "@/lib/utils";
+import { cn, getApiErrorMessage, getLocalDateString } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 
 import { getSectionById } from "@/lib/api/section";
@@ -36,7 +36,7 @@ export default function AdminDiaryPageClient({
   const sectionId = parseInt(params.sectionId as string);
   const subjectId = parseInt(initialSubjectId || "0");
   const teacherId = parseInt(initialTeacherId || "0");
-  const diaryDate = initialDiaryDate || new Date().toISOString().split("T")[0];
+  const diaryDate = initialDiaryDate || getLocalDateString();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");

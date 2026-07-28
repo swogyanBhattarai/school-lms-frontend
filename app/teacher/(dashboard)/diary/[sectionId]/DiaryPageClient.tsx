@@ -7,7 +7,7 @@ import { ArrowLeft, BookOpen, Calendar, Save, FileText } from "lucide-react";
 
 import { Button } from "@/app/_components/ui/button";
 import { Input } from "@/app/_components/ui/input";
-import { cn, getApiErrorMessage } from "@/lib/utils";
+import { cn, getApiErrorMessage, getLocalDateString } from "@/lib/utils";
 import { useToast } from "@/app/_components/ui/use-toast";
 
 import { getClassAssignmentsByTeacherId } from "@/lib/api/teacher";
@@ -25,7 +25,7 @@ export default function DiaryPageClient({
 
   const sectionId = parseInt(params.sectionId as string);
   const subjectId = parseInt(initialSubjectId || "0");
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getLocalDateString();
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");

@@ -2,6 +2,7 @@
 "use client";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { getLocalDateString } from "@/lib/utils";
 import {
   Plus,
   Trash2,
@@ -392,7 +393,7 @@ export default function TeachersPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `teachers-export-${new Date().toISOString().split("T")[0]}.json`;
+    a.download = `teachers-export-${getLocalDateString()}.json`;
     a.click();
     URL.revokeObjectURL(url);
 

@@ -9,7 +9,7 @@ import {
   Globe,
 } from "lucide-react";
 import { Button } from "./ui/button";
-import { cn } from "@/lib/utils";
+import { cn, getLocalDateString } from "@/lib/utils";
 import {
   NEPALI_MONTHS,
   NEPALI_WEEK_DAYS,
@@ -77,7 +77,7 @@ export function NepaliCalendar({
   // Get events for a specific date
   const toAdYmd = (year: number, month: number, day: number) => {
     const adDate = convertBSToAD(year, month, day);
-    return adDate.toISOString().split("T")[0];
+    return getLocalDateString(adDate);
   };
 
   const getEventsForDate = (day: number): CalendarEvent[] => {

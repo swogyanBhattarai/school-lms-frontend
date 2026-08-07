@@ -37,8 +37,8 @@ export const getAttendanceById = async (id: number): Promise<AttendanceModel> =>
  */
 export const createAttendance = async (
   payload: AttendanceModel
-): Promise<AttendanceModel> => {
-  const response = await api.post("/api/attendance", payload);
+): Promise<string> => {
+  const response = await api.post<string>("/api/attendance", payload);
   return response.data;
 };
 

@@ -19,8 +19,8 @@ export interface SectionAssignmentResponse {
 export const createStudentAndAssignToSection = async (
   sectionId: number,
   student: StudentCreate
-): Promise<SectionAssignmentResponse> => {
-  const response = await api.post<SectionAssignmentResponse>(
+): Promise<string> => {
+  const response = await api.post<string>(
     `/api/section-assignment/create-and-assign-to/${sectionId}`,
     student
   );
@@ -33,8 +33,8 @@ export const createStudentAndAssignToSection = async (
 export const addStudentToSection = async (
   sectionId: number,
   studentId: number
-): Promise<SectionAssignmentResponse> => {
-  const response = await api.post<SectionAssignmentResponse>(
+): Promise<string> => {
+  const response = await api.post<string>(
     '/api/section-assignment',
     {
       sectionId,

@@ -6,10 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Bell,
   ChevronRight,
-  ClipboardList,
-  Users,
-  AlertTriangle,
-  Clock,
   Menu,
   Search,
 } from "lucide-react";
@@ -21,7 +17,6 @@ import { useUser } from "@/lib/contexts/UserContext";
 import { useWebSocket } from "@/lib/contexts/WebSocketContext";
 import { getUnreadNotificationCount } from "@/lib/api/notification";
 import { notificationKeys } from "@/lib/api/hooks/notification";
-import type { NotificationResponse, NOTIFICATION_TYPE } from "@/types/lms";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,56 +29,6 @@ import {
 type TopbarProps = {
   onMenuClick: () => void;
 };
-
-const TYPE_CONFIG: Record<
-  NOTIFICATION_TYPE,
-  { icon: typeof Bell; bg: string; color: string; label: string }
-> = {
-  STUDENT_ATTENDANCE: {
-    icon: ClipboardList,
-    bg: "bg-blue-100",
-    color: "text-blue-600",
-    label: "Attendance",
-  },
-  MASS_ATTENDANCE: {
-    icon: Users,
-    bg: "bg-emerald-100",
-    color: "text-emerald-600",
-    label: "Bulk Attendance",
-  },
-  NOTICE: {
-    icon: AlertTriangle,
-    bg: "bg-amber-100",
-    color: "text-amber-600",
-    label: "Notice",
-  },
-};
-
-function getNotificationDescription(notification: NotificationResponse): string | undefined {
-  switch (notification.notificationType) {
-    case "MASS_ATTENDANCE": {
-      const d = notification.data;
-      return `${d.teacherName} marked attendance for ${d.grade} — ${d.sectionName} (${d.subjectName})`;
-    }
-    case "STUDENT_ATTENDANCE": {
-      const d = notification.data;
-      return `${d.studentName} was marked ${d.attendanceStatus.toLowerCase()} in ${d.subjectName}`;
-    }
-    case "NOTICE":
-      return undefined;
-  }
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
 
 const formatRoleLabel = (role: string) =>
   role
@@ -241,136 +186,48 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
 
       {/* Right section — actions */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Notification dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={cn(
-                "group relative flex items-center gap-2 h-9 rounded-lg transition-all duration-200",
-                "hover:bg-muted/80 active:scale-[0.97]",
-                "px-2.5",
-                unreadCount > 0
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              aria-label={
-                unreadCount > 0
-                  ? `${unreadCount} unread notifications`
-                  : "Notifications"
-              }
-            >
-              {/* Bell with subtle pulse when unread */}
-              <span className="relative">
-                <Bell className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-105" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-                  </span>
-                )}
+        {/* Notification bell — navigates directly to notifications page */}
+        <button
+          onClick={() => router.push(`${getNotificationBasePath()}/notifications`)}
+          className={cn(
+            "group relative flex items-center gap-2 h-9 rounded-lg transition-all duration-200",
+            "hover:bg-muted/80 active:scale-[0.97]",
+            "px-2.5",
+            unreadCount > 0
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+          aria-label={
+            unreadCount > 0
+              ? `${unreadCount} unread notifications`
+              : "Notifications"
+          }
+        >
+          {/* Bell with subtle pulse when unread */}
+          <span className="relative">
+            <Bell className="h-[18px] w-[18px] transition-transform duration-200 group-hover:scale-105" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
               </span>
+            )}
+          </span>
 
-              {/* Unread count text — visible on sm+ screens */}
-              {unreadCount > 0 && (
-                <span className="hidden sm:inline-flex items-center text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200/80 rounded-md px-2 py-0.5 leading-none">
-                  {unreadCount} unread
-                </span>
-              )}
+          {/* Unread count text — visible on sm+ screens */}
+          {unreadCount > 0 && (
+            <span className="hidden sm:inline-flex items-center text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200/80 rounded-md px-2 py-0.5 leading-none">
+              {unreadCount} unread
+            </span>
+          )}
 
-              {/* Mobile: just a small badge number */}
-              {unreadCount > 0 && (
-                <span className="sm:hidden flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-blue-500 text-[10px] font-bold text-white leading-none px-1">
-                  {unreadCount}
-                </span>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent
-            align="end"
-            className="w-80 p-0 overflow-hidden"
-            sideOffset={8}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
-              <DropdownMenuLabel className="p-0 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Notifications
-              </DropdownMenuLabel>
-              {unreadCount > 0 && (
-                <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-full px-2.5 py-0.5">
-                  {unreadCount} new
-                </span>
-              )}
-            </div>
-            <DropdownMenuSeparator className="m-0" />
-
-            {/* Notification items */}
-            <div className="max-h-[320px] overflow-y-auto">
-              {latestNotifications.length === 0 ? (
-                <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  No notifications yet
-                </div>
-              ) : (
-                latestNotifications.slice(0, 5).map((notification) => {
-                  const config = TYPE_CONFIG[notification.notificationType] ?? TYPE_CONFIG.NOTICE;
-                  const Icon = config.icon;
-                  const description = getNotificationDescription(notification);
-
-                  return (
-                    <DropdownMenuItem
-                      key={notification.notificationId}
-                      className="flex items-start gap-3 py-3 px-4 cursor-pointer transition-colors rounded-none"
-                    >
-                      <div
-                        className={cn(
-                          "mt-0.5 flex h-7 w-7 items-center justify-center rounded-lg shrink-0",
-                          config.bg,
-                        )}
-                      >
-                        <Icon className={cn("h-3.5 w-3.5", config.color)} />
-                      </div>
-                      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium text-foreground leading-snug truncate">
-                            {notification.title}
-                          </span>
-                          <span
-                            className={cn(
-                              "shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                              config.bg,
-                              config.color,
-                            )}
-                          >
-                            {config.label}
-                          </span>
-                        </div>
-                        {description && (
-                          <span className="text-xs text-muted-foreground line-clamp-1">
-                            {description}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {timeAgo(notification.createdAt)}
-                        </span>
-                      </div>
-                    </DropdownMenuItem>
-                  );
-                })
-              )}
-            </div>
-
-            <DropdownMenuSeparator className="m-0" />
-
-            {/* Footer */}
-            <DropdownMenuItem
-              className="flex items-center justify-center py-2.5 text-xs text-primary font-semibold cursor-pointer hover:bg-primary/5 transition-colors rounded-none"
-              onSelect={() => router.push(`${getNotificationBasePath()}/notifications`)}
-            >
-              View all notifications
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          {/* Mobile: just a small badge number */}
+          {unreadCount > 0 && (
+            <span className="sm:hidden flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-blue-500 text-[10px] font-bold text-white leading-none px-1">
+              {unreadCount}
+            </span>
+          )}
+        </button>
 
         {/* Separator on desktop */}
         <div className="hidden sm:block h-6 w-px bg-border/60 mx-0.5" />

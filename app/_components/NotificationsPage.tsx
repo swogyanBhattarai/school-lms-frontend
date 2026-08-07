@@ -87,15 +87,22 @@ function NotificationCard({
           ? "bg-slate-50/50 border-slate-200/80 opacity-80 hover:opacity-100"
           : "bg-white border-slate-200 hover:border-slate-300 hover:shadow-md shadow-sm",
         !isRead && "border-l-4 border-l-blue-500",
-        notification.notificationType === "MASS_ATTENDANCE" && "cursor-pointer"
+        notification.notificationType === "MASS_ATTENDANCE" && "cursor-pointer",
       )}
-      onClick={notification.notificationType === "MASS_ATTENDANCE" ? handleCardClick : undefined}
+      onClick={
+        notification.notificationType === "MASS_ATTENDANCE"
+          ? handleCardClick
+          : undefined
+      }
     >
       <div className="p-4">
         {/* Mobile: Top-right check button */}
         {!isRead && (
           <button
-            onClick={() => onMarkRead(notification.notificationId)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkRead(notification.notificationId);
+            }}
             className="sm:hidden absolute top-3 right-3 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 active:bg-slate-200 active:text-slate-700 z-10"
             aria-label="Mark as read"
           >
@@ -109,13 +116,13 @@ function NotificationCard({
           <div
             className={cn(
               "flex h-10 w-10 items-center justify-center rounded-xl flex-shrink-0",
-              isRead ? "bg-slate-100" : config.bg
+              isRead ? "bg-slate-100" : config.bg,
             )}
           >
             <Icon
               className={cn(
                 "h-5 w-5",
-                isRead ? "text-slate-400" : config.color
+                isRead ? "text-slate-400" : config.color,
               )}
             />
           </div>
@@ -129,7 +136,7 @@ function NotificationCard({
               <h3
                 className={cn(
                   "text-sm sm:text-[15px] font-semibold truncate",
-                  isRead ? "text-slate-500" : "text-slate-900"
+                  isRead ? "text-slate-500" : "text-slate-900",
                 )}
               >
                 {notification.title}
@@ -168,8 +175,11 @@ function NotificationCard({
       {!isRead && (
         <div className="hidden sm:block absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
-            onClick={() => onMarkRead(notification.notificationId)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50 hover:text-slate-800 hover:border-slate-300 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              onMarkRead(notification.notificationId);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-full bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors"
             aria-label="Mark as read"
           >
             <X className="h-3 w-3" />
@@ -230,9 +240,18 @@ function MassAttendanceContent({ data }: { data: AdminAttendanceData }) {
 // Extracted Component for Student Attendance UI
 function StudentAttendanceContent({ data }: { data: ParentAttendanceData }) {
   const statusConfig = {
-    PRESENT: { label: "Present", classes: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-    ABSENT: { label: "Absent", classes: "bg-red-50 text-red-700 border-red-200" },
-    LEAVE: { label: "On Leave", classes: "bg-amber-50 text-amber-700 border-amber-200" },
+    PRESENT: {
+      label: "Present",
+      classes: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    },
+    ABSENT: {
+      label: "Absent",
+      classes: "bg-red-50 text-red-700 border-red-200",
+    },
+    LEAVE: {
+      label: "On Leave",
+      classes: "bg-amber-50 text-amber-700 border-amber-200",
+    },
   };
 
   const config = statusConfig[data.attendanceStatus] || statusConfig.PRESENT;
@@ -257,7 +276,7 @@ function StudentAttendanceContent({ data }: { data: ParentAttendanceData }) {
         <span
           className={cn(
             "ml-auto flex-shrink-0 inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
-            config.classes
+            config.classes,
           )}
         >
           {config.label}
@@ -303,7 +322,7 @@ function StudentAttendanceContent({ data }: { data: ParentAttendanceData }) {
           <span
             className={cn(
               "ml-auto inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
-              config.classes
+              config.classes,
             )}
           >
             {config.label}
@@ -405,7 +424,7 @@ export default function NotificationsPage({
               size="sm"
               onClick={handleMarkAllRead}
               disabled={markAllReadMutation.isPending}
-              className="gap-1.5 shadow-sm"
+              className="gap-1.5 rounded-full bg-white hover:bg-slate-50 border-slate-200 hover:border-slate-300 shadow-sm"
             >
               <CheckCheck className="h-4 w-4" />
               <span className="hidden sm:inline">Mark all as read</span>
@@ -446,9 +465,7 @@ export default function NotificationsPage({
             Failed to load notifications
           </h3>
           <p className="mt-1 text-sm text-red-500">
-            {error instanceof Error
-              ? error.message
-              : "Please try again later."}
+            {error instanceof Error ? error.message : "Please try again later."}
           </p>
         </div>
       ) : notifications.length === 0 ? (

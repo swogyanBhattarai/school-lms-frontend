@@ -38,8 +38,8 @@ export const getClassAssignmentById = async (id: number): Promise<ClassAssignmen
  */
 export const createClassAssignment = async (
   payload: ClassAssignmentCreate
-): Promise<ClassAssignmentResponse> => {
-  const response = await api.post<ClassAssignmentResponse>("/api/class-assignment", payload);
+): Promise<string> => {
+  const response = await api.post<string>("/api/class-assignment", payload);
   return response.data;
 };
 
@@ -49,8 +49,8 @@ export const createClassAssignment = async (
 export const updateClassAssignment = async (
   id: number,
   payload: ClassAssignmentUpdate
-): Promise<ClassAssignmentResponse> => {
-  const response = await api.put<ClassAssignmentResponse>(
+): Promise<string> => {
+  const response = await api.put<string>(
     `/api/class-assignment/${id}`,
     payload
   );
